@@ -201,7 +201,7 @@ def test_cloud_task_is_skipped_without_claim_or_launch() -> None:
     assert not launcher.launches
     assert service.rows["A"]["status"] == "todo"
     assert not service.claims
-    assert "failed p/A cloud placement not supported by dispatch v1" in events
+    assert "failed p/A cloud placement not supported by this launcher" in events
 
 
 def test_expired_orphan_is_reconciled_and_released() -> None:

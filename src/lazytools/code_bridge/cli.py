@@ -499,7 +499,7 @@ def _cmd_run_cloud(args: argparse.Namespace) -> int:
             raise ValueError("run requires --task (or --review-of, for a cloud review)")
         cwd = _engines.resolve_cwd(args.cwd, args.root)
         branch = args.branch
-        extra_meta: dict[str, Any] = {}
+        extra_meta: dict[str, Any] = {"task_id": args.task_id} if args.task_id else {}
         if args.review_of:
             store = _store.build_store(_db_path(args))
             prep = _cloud_land.prepare_review(
@@ -674,10 +674,11 @@ def _cmd_run(args: argparse.Namespace) -> int:
     if refusal is not None:
         return refusal
     if args.where == _cloud.WHERE_CLOUD:
+        # A cloud job may carry --task-id as a label (dispatch records it); the claim
+        # fence (--claim-token) is checked by local launches only.
         if (
             args.launch_mode != "auto"
             or args.profile not in _launch.LEGACY_PROFILES
-            or args.task_id
             or args.claim_token
         ):
             print("error: core launch mode, profiles, and task claims require local placement", file=sys.stderr)
@@ -2364,7 +2365,8 @@ def build_parser() -> argparse.ArgumentParser:
         default="auto",
         help="Governed requires matching release evidence. Legacy explicitly allows an ungoverned launch.",
     )
-    run_p.add_argument("--task-id", help="Projects task ID for a local launch, paired with --claim-token.")
+    run_p.add_argument("--task-id", help="Projects task ID: for a local launch paired with --claim-token; "
+                       "a cloud job only records it.")
     run_p.add_argument("--claim-token", help="Fence token returned by the projects task claim.")
     run_p.add_argument("--intentional-review", action="store_true", help=argparse.SUPPRESS)
     run_p.add_argument("--detached-binding", action="store_true", help=argparse.SUPPRESS)

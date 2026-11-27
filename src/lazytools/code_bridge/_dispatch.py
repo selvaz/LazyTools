@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -17,7 +18,16 @@ from typing import Any, Literal, Protocol
 from lazybridge import Store
 from lazybridge.ext.knowledge import DEFAULT_PREFIX, DurableKnowledgeBase, slugify
 
-from lazytools.code_bridge import _cloud, _concurrency, _jobs, _registry, _routing, _store
+from lazytools.code_bridge import (
+    _cloud,
+    _cloud_land,
+    _cloud_place,
+    _concurrency,
+    _jobs,
+    _registry,
+    _routing,
+    _store,
+)
 from lazytools.code_bridge._navigator import _split_command
 from lazytools.connectors.projects.tools import _resolve_store_db
 from lazytools.projects.plan_edit import _board_key
@@ -32,6 +42,7 @@ STALE_HEARTBEAT = "engine heartbeat went stale"
 COMMIT_EXCLUDES = ("*.log", "**/__pycache__", ".pytest_cache", "**/.pytest_cache")
 RETRYABLE_FAILURES = ("App Server exited", "outcome is unknown", "3221226505", "0xC0000409",
                       "no new commit since the task started", STALE_HEARTBEAT, "database is locked")
+CLOUD_POLL_SECONDS = 30.0  # minimum spacing of provider status polls for one cloud job
 
 
 def _has_stale_heartbeat(job: dict[str, Any], cutoff: float) -> bool:
@@ -258,6 +269,70 @@ class BridgeLauncher:
         return next((job for job in _jobs.list_jobs(store, all_jobs=True)
                      if job.get("task_id") == task_id and job.get("task_attempt") == attempt), None)
 
+    # Cloud placement: the existing `run --where cloud` path submits, lands and opens the PR.
+
+    def cloud_free(self, engine_family: str) -> bool:
+        """Whether the configured cloud limits ([cloud] concurrency, per provider) leave a place."""
+        engine = "claude" if engine_family == "claude_code" else engine_family
+        config = _cloud.load_config()
+        active = _cloud.active_jobs(_store.build_store(Path(self.db) if self.db else None))
+        if config.concurrency and len(active) >= config.concurrency:
+            return False
+        limit = config.provider_concurrency.get(engine)
+        return not (limit and sum(job.get("engine") == engine for job in active) >= limit)
+
+    def launch_cloud(self, task: dict[str, Any], claim: dict[str, Any], job_id: str) -> str:
+        repo = self.repo_roots.get(str(task.get("repo"))) or Path.cwd()
+        family = str(claim["engine_family"])
+        command = [sys.executable, "-m", "lazytools.code_bridge", "run", "--where", "cloud", "--allow-cloud",
+                   "--engine", "claude" if family == "claude_code" else family,
+                   "--branch", _cloud.current_branch(repo), "--open-pr", "--land",
+                   "--task-id", claim["task_id"], "--job-id", job_id,
+                   "--cwd", str(repo), "--root", str(repo), "--task", str(task["text"]),
+                   "--tier", task.get("tier") or "thinking", "--no-brief-check"]
+        if self.db:
+            command.extend(("--db", self.db))
+        if task.get("requested_network") is not None:
+            command.extend(("--network", "on" if task["requested_network"] else "off"))
+        result = subprocess.run(command, text=True, capture_output=True, check=False)
+        if result.returncode:
+            raise RuntimeError((result.stderr or result.stdout).strip() or f"bridge exited {result.returncode}")
+        return job_id
+
+    def cloud_job(self, job_ref: str) -> dict[str, Any] | None:
+        """Poll a cloud job once and land it when done (as `wait-any` does); return its record."""
+        db_path = Path(self.db) if self.db else None
+        store = _store.build_store(db_path)
+        registry = _store.build_job_registry(store)
+        job = _jobs.find_job(store, registry, job_ref)
+        if job is None:
+            return None
+        row = _cloud_land.process_job(store, registry, job, db_path=db_path, poll_interval=CLOUD_POLL_SECONDS,
+                                      nonblocking_poll=True)
+        job = _jobs.find_job(store, registry, str(job["job_id"])) or job
+        if row["action"] in ("land-failed", "skipped"):
+            job = {**job, "land_failure": row["detail"]}
+        return job
+
+    def cloud_checkout(self, task_id: str, job: dict[str, Any]) -> Path:
+        """A fresh local clone of the landed branch at the pushed commit, for the acceptance checks."""
+        repo = Path(str(job.get("repo_root") or Path.cwd()))
+        safe_project = re.sub(r"[^A-Za-z0-9_.-]+", "-", self.project_id)
+        safe_task = re.sub(r"[^A-Za-z0-9_.-]+", "-", task_id.rsplit("/", 1)[-1])
+        checkout = (self.worktree_root or repo.parent / "_dispatch") / safe_project / f"{safe_task}-cloud"
+        shutil.rmtree(checkout, ignore_errors=True)
+        checkout.parent.mkdir(parents=True, exist_ok=True)
+        self._git(repo, "clone", "--quiet", "--local", "--no-checkout", str(repo), str(checkout))
+        self._git(checkout, "remote", "set-url", "origin", self._git(repo, "remote", "get-url", "origin"))
+        self._git(checkout, "fetch", "--quiet", "origin", f"refs/heads/{job['landed_branch']}")
+        self._git(checkout, "checkout", "--quiet", "--detach", str(job["pushed_sha"]))
+        return checkout
+
+
+def cloud_job_id(claim_token: str) -> str:
+    """The cloud job id of a claim: known before the submit, so a restart can find the job."""
+    return hashlib.sha256(f"dispatch-cloud:{claim_token}".encode()).hexdigest()[:32]
+
 
 def _conclude_workspace(cwd: Path, task_id: str) -> tuple[str | None, str | None]:
     """Make a finished job's checkout committed, or say why it is not.
@@ -392,7 +467,8 @@ class Dispatcher:
                  router: Callable[..., str | None] | None = None, max_retries: int = 1,
                  json_events: bool = False, knowledge_store: Store | None = None,
                  stale_minutes: int = DEFAULT_STALE_MINUTES,
-                 capacity: Callable[[str], int | None] | None = None, router_with_engine: bool = False):
+                 capacity: Callable[[str], int | None] | None = None, router_with_engine: bool = False,
+                 cloud_placer: Callable[[dict[str, Any], str], tuple[str, str]] | None = None):
         if not 1 <= parallel <= 100:
             raise ValueError("--parallel must be between 1 and 100")
         if stale_minutes < 1:
@@ -407,6 +483,8 @@ class Dispatcher:
         self.router = router
         self.capacity = capacity  # engine family -> local slot limit (None = unlimited)
         self.router_with_engine = router_with_engine  # router accepts (tier, engine_family)
+        # (task data, tier) -> (engine family, cloud environment id); raises when cloud is not possible
+        self.cloud_placer = cloud_placer
         self.reported_blocked: set[str] = set()
         self.unsupported: set[str] = set()
         self.waiting: set[str] = set()
@@ -517,7 +595,7 @@ class Dispatcher:
         `next_ready` only returns tasks with fresh placement evidence; the quota router
         picks the engine family for the task's tier here, and the launch later pins it.
         """
-        if self.router is None:
+        if self.router is None and self.cloud_placer is None:
             return
         status = {task.task_id.rsplit("/", 1)[1]: task.status for task in tasks}
         now = self.clock()
@@ -526,7 +604,10 @@ class Dispatcher:
         in_use: dict[str, int] = {}
         for task in tasks:
             if task.status == "claimed":
-                family = str(((task.dispatch or {}).get("receipt") or {}).get("engine_family") or "")
+                receipt = (task.dispatch or {}).get("receipt") or {}
+                # A cloud job takes no local engine slot.
+                local = receipt.get("effective_placement", "local") == "local"
+                family = str(receipt.get("engine_family") or "") if local else ""
             elif task.status == "todo":
                 evidence = task.data.get("placement_evidence", {}).get("local", {})
                 fresh = evidence.get("revision") == task.revision and                     evidence.get("evidence", {}).get("expires_at", 0) > now + 60
@@ -537,15 +618,21 @@ class Dispatcher:
                 in_use[family] = in_use.get(family, 0) + 1
         for task in tasks:
             data = task.data
-            if (task.status != "todo" or data.get("requested_placement", "local") != "local"
+            requested = data.get("requested_placement", "local")
+            placer = self.router if requested == "local" else self.cloud_placer if requested == "cloud" else None
+            if (task.status != "todo" or placer is None
                     or data.get("review_of") or data.get("acceptance_contract")
                     or any(status.get(dep) != "done" for dep in data.get("dependency_ids", []))):
                 continue
-            record = data.get("placement_evidence", {}).get("local", {})
+            record = data.get("placement_evidence", {}).get(requested, {})
             evidence = record.get("evidence", {})
             if record.get("revision") == task.revision and evidence.get("expires_at", 0) > now + 60:
                 continue
             tier = data.get("tier") or "thinking"
+            if requested == "cloud":
+                self._place_cloud(task, tier, now)
+                continue
+            assert self.router is not None
             if tier not in picks:
                 try:
                     picks[tier] = self.router(tier)
@@ -578,6 +665,25 @@ class Dispatcher:
             in_use[engine] = in_use.get(engine, 0) + 1
             self._event("placed", task.task_id, f"local {engine} tier={tier}")
 
+    def _place_cloud(self, task: Task, tier: str, now: float) -> None:
+        """Record cloud placement evidence: the routed engine and its cloud environment."""
+        assert self.cloud_placer is not None
+        try:
+            engine, environment = self.cloud_placer(task.data, tier)
+        except Exception as exc:
+            if task.task_id not in self.waiting:
+                self._event("waiting", task.task_id, f"cloud placement failed: {str(exc).replace(chr(10), ' ')}")
+                self.waiting.add(task.task_id)
+            return
+        self.waiting.discard(task.task_id)
+        self.service.record_placement(task.task_id, task.revision, PlacementEvidence(
+            placement="cloud", eligible=True,
+            reason=f"quota router picked {engine} for tier {tier}; cloud environment {environment}",
+            reference=f"dispatch-{task.task_id}-{task.revision}-{int(now)}-cloud",
+            expires_at=now + self.service.lease_seconds + 60, engine_family=engine, environment_id=environment,
+        ))
+        self._event("placed", task.task_id, f"cloud {engine} env={environment} tier={tier}")
+
     def _blocked(self, tasks: list[Task]) -> None:
         failed = {task.task_id.rsplit("/", 1)[1] for task in tasks if task.status == "failed"}
         for task in tasks:
@@ -586,9 +692,132 @@ class Dispatcher:
                 self._event("blocked", task.task_id)
                 self.reported_blocked.add(task.task_id)
 
+    def _settle_missing(self, task: Task, dispatch: dict[str, Any], receipt: dict[str, Any]) -> bool:
+        """Release a claim whose job never appeared, once the lease and the grace period are over."""
+        created = float(dispatch.get("created_at", 0))
+        expired = float(receipt.get("lease_expires_at", float("inf"))) <= self.clock()
+        if expired and self.clock() - created >= self.orphan_grace:
+            dispatch_state = dispatch.get("state", "intent")
+            observation: Literal["absent", "terminated"] = "terminated" if dispatch.get("job_ref") else "absent"
+            self.service.reconcile_dispatch(
+                self.principal, task.task_id, receipt["attempt"], observation,
+                evidence_ref=None if dispatch_state == "intent" else "dispatcher:no-job-after-grace",
+                job_ref=dispatch.get("job_ref"),
+            )
+            reason = "no job after dispatch grace period"
+            self._record_lesson(task, "missing job", reason)
+            self._event("failed", task.task_id, reason, job_id=dispatch.get("job_ref"))
+            return True
+        return False
+
+    def _settle_cloud(self, task: Task) -> bool:
+        """Settle a cloud dispatch once its job is terminal and its landing is resolved.
+
+        Accepted only when the job landed (PR url and pushed commit recorded) and the
+        task's checks pass in a fresh local clone of the landed branch.
+        """
+        dispatch = task.dispatch or {}
+        receipt = dispatch.get("receipt", {})
+        token = receipt["claim_token"]
+        job_ref = str(dispatch.get("job_ref") or cloud_job_id(token))
+        job = self.launcher.cloud_job(job_ref)  # type: ignore[attr-defined]
+        if job is None:
+            return self._settle_missing(task, dispatch, receipt)
+        if not dispatch.get("job_ref"):
+            # Restarted between the submit and its acknowledgement: adopt the job.
+            self.service.record_submit(self.principal, task.task_id, token, job_ref)
+        status = job.get("status")
+        expired = float(receipt.get("lease_expires_at", float("inf"))) <= self.clock()
+        landing_owed = status == "done" and _cloud_land.needs_finishing(job) and not job.get("land_failure")
+        if status not in TERMINAL or landing_owed:
+            cancel = getattr(self.launcher, "cancel", None)
+            if (expired and status not in TERMINAL and cancel is not None and job_ref not in self.cancelled
+                    and cancel(job_ref)):
+                self.cancelled.add(job_ref)
+                self._event("cancelled", task.task_id, "claim lease expired; settling once the job has stopped",
+                            job_id=job_ref)
+            return False
+        checks = task.data.get("checks")
+        reference = f"cloud-job:{job_ref}:{status}" + (":checks" if checks else "")
+        recorded = dispatch.get("evidence", {}).get(reference)
+        landed = bool(status == "done" and job.get("landed_at") and job.get("pr_url") and job.get("pushed_sha"))
+        failure: str | None
+        if recorded:  # restarted after recording: the evidence decides, the checks are not run again
+            failure = None if recorded.get("state") == "accepted" else (
+                recorded.get("failure_reason") or "cloud job failed")
+        elif status != "done":
+            failure = f"cloud job {status}: {_cloud.redact(str(job.get('error') or 'no error recorded'))}"
+        elif not landed:
+            detail = job.get("land_failure") or job.get("land_error") or "no PR url or pushed commit recorded"
+            failure = f"cloud job did not land: {_cloud.redact(str(detail))}"
+        elif expired:
+            failure = "claim lease expired"
+        elif checks:
+            try:
+                cwd = self.launcher.cloud_checkout(task.task_id, job)  # type: ignore[attr-defined]
+            except Exception as exc:
+                failure = f"could not clone the landed branch: {_cloud.redact(str(exc))[:300]}"
+            else:
+                failure = ("\n".join(filter(None, (_check_failure(command, cwd) for command in checks)))
+                           or _checks_changed_checkout(cwd, job.get("pushed_sha")))
+            expired = float(receipt.get("lease_expires_at", float("inf"))) <= self.clock()
+            failure = failure or ("claim lease expired" if expired else None)
+        else:
+            failure = None
+        accepted = failure is None
+        state: Literal["accepted", "blocked"] = "accepted" if accepted else "blocked"
+        if not recorded:
+            self.service.record_completion_evidence(self.principal, task.task_id, receipt["attempt"], CompletionEvidence(
+                reference=reference, job_ref=job_ref, executor=receipt["executor"],
+                engine_family=receipt["engine_family"], state=state,
+                artifact_ref=str(job["pushed_sha"]) if landed else None,
+                outcome="success" if accepted else "task_failure", failure_reason=failure))
+        complete_options = {"reconcile_failure": True} if expired and not accepted else {}
+        self.service.complete(self.principal, task.task_id, token, reference, state, reference,
+                              "success" if accepted else "task_failure", **complete_options)
+        if accepted:
+            self._event("published", task.task_id, str(job["pr_url"]), job_id=job_ref)
+            self._event("done", task.task_id, job_id=job_ref)
+            return True
+        assert failure is not None
+        self._record_lesson(task, "task failure", failure)
+        self._event("failed", task.task_id, failure.split("\n", 1)[0], job_id=job_ref)
+        return True
+
+    def _launch_cloud(self, task: Task, summary: dict[str, Any], claim: dict[str, Any]) -> bool:
+        """Submit a claimed cloud task through `run --where cloud`; record its job; True when launched."""
+        task_id, token = summary["task_id"], claim["claim_token"]
+        job_id = cloud_job_id(token)
+        try:
+            self.service.begin_submit(self.principal, task_id, token)
+        except Exception as exc:
+            reason = str(exc).replace("\n", " ")
+            self.service.fail_dispatch_launch(self.principal, task_id, token, reason)  # back to todo
+            self._event("failed", task_id, reason)
+            return False
+        try:
+            job_ref = self.launcher.launch_cloud(  # type: ignore[attr-defined]
+                self._with_lessons({**summary, **task.data}), claim, job_id)
+        except Exception as exc:
+            reason = _cloud.redact(str(exc)).replace("\n", " ")
+            if self.launcher.job(job_id) is None:  # nothing reached the provider
+                try:
+                    self.service.fail_local_launch(self.principal, task_id, token, reason)
+                except Exception as release_exc:
+                    reason = f"{reason}; claim release failed: {str(release_exc).replace(chr(10), ' ')}"
+                self._record_lesson(task, "launch failure", reason)
+                self._event("failed", task_id, reason)
+                return False
+            job_ref = job_id  # a failed submit is recorded; settlement reports it
+        self.service.record_submit(self.principal, task_id, token, job_ref)
+        self._event("launched", task_id, job_id=job_ref)
+        return True
+
     def _settle(self, task: Task) -> bool:
         dispatch = task.dispatch or {}
         receipt = dispatch.get("receipt", {})
+        if receipt.get("effective_placement") == "cloud":
+            return self._settle_cloud(task)
         job_ref = dispatch.get("job_ref")
         job = self.launcher.job(job_ref) if job_ref else self.launcher.find(task.task_id, receipt.get("attempt", 0))
         if job and not job_ref:
@@ -601,21 +830,7 @@ class Dispatcher:
                 raise
             job_ref = str(job["job_id"])
         if not job:
-            created = float(dispatch.get("created_at", 0))
-            expired = float(receipt.get("lease_expires_at", float("inf"))) <= self.clock()
-            if expired and self.clock() - created >= self.orphan_grace:
-                dispatch_state = dispatch.get("state", "intent")
-                observation: Literal["absent", "terminated"] = "terminated" if dispatch.get("job_ref") else "absent"
-                self.service.reconcile_dispatch(
-                    self.principal, task.task_id, receipt["attempt"], observation,
-                    evidence_ref=None if dispatch_state == "intent" else "dispatcher:no-job-after-grace",
-                    job_ref=dispatch.get("job_ref"),
-                )
-                reason = "no job after dispatch grace period"
-                self._record_lesson(task, "missing job", reason)
-                self._event("failed", task.task_id, reason, job_id=dispatch.get("job_ref"))
-                return True
-            return False
+            return self._settle_missing(task, dispatch, receipt)
         if job.get("status") not in TERMINAL:
             now = self.clock()
             lease_end = float(receipt.get("lease_expires_at", float("inf")))
@@ -762,8 +977,9 @@ class Dispatcher:
                 continue
             data = board_task.data
             self._event("ready", summary["task_id"])
-            if summary.get("effective_placement") == "cloud":
-                reason = "cloud placement not supported by dispatch v1"
+            cloud = summary.get("effective_placement") == "cloud"
+            if cloud and not hasattr(self.launcher, "launch_cloud"):
+                reason = "cloud placement not supported by this launcher"
                 self.unsupported.add(summary["task_id"])
                 self._event("failed", summary["task_id"], reason)
                 continue
@@ -772,6 +988,14 @@ class Dispatcher:
                 self.unsupported.add(summary["task_id"])
                 self._event("failed", summary["task_id"], reason)
                 continue
+            if cloud:
+                evidence = data.get("placement_evidence", {}).get("cloud", {}).get("evidence", {})
+                if not self.launcher.cloud_free(str(evidence.get("engine_family") or "")):  # type: ignore[attr-defined]
+                    if summary["task_id"] not in self.waiting:
+                        self._event("waiting", summary["task_id"], "cloud concurrency limit reached")
+                        self.waiting.add(summary["task_id"])
+                    continue
+                self.waiting.discard(summary["task_id"])
             branch = data.get("assigned_branch")
             if branch and str(branch) in running_branches:
                 self._event("failed", summary["task_id"], "assigned branch already running")
@@ -790,6 +1014,10 @@ class Dispatcher:
                 continue
             claim = result["claim"]
             self._event("claimed", summary["task_id"])
+            if cloud:
+                if self._launch_cloud(board_task, summary, claim):
+                    running += 1
+                continue
             try:
                 job_ref = self.launcher.launch(self._with_lessons({**summary, **data}), claim)
             except Exception as exc:
@@ -890,6 +1118,23 @@ def dispatch(args: argparse.Namespace) -> int:
         reading = selection.readings.get(provider) if provider else None
         return provider if usable_reading(reading) else None
 
+    def cloud_placer(task: dict[str, Any], tier: str) -> tuple[str, str]:
+        """The routed engine and its cloud environment, through the same decision `run --where cloud` uses."""
+        family = router(tier)
+        if family is None:
+            raise ValueError(f"no eligible engine for tier {tier}")
+        engine = "claude" if family == "claude_code" else family
+        repo = repo_roots.get(str(task.get("repo"))) or Path.cwd()
+        config = _cloud.load_config()
+        placement = _cloud_place.decide_for_repo("cloud", config=config, engine=engine, cwd=repo)
+        if placement.where != "cloud":
+            raise ValueError(placement.reason)
+        routine = _cloud.select_routine(config, routine=None, model=None) if engine == "claude" else None
+        if engine == "claude" and routine is None:
+            raise ValueError("Claude cloud jobs need a configured routine ([cloud.claude] default_routine)")
+        environment = _cloud.provider(engine).env_for(_cloud.repo_slug(_cloud.repo_root(repo)), config, routine)
+        return family, environment
+
     limits = _concurrency.load_limits()
 
     def capacity(engine_family: str) -> int | None:
@@ -899,7 +1144,7 @@ def dispatch(args: argparse.Namespace) -> int:
     knowledge_store = _store.build_store(Path(knowledge_db).expanduser()) if knowledge_db is not None else None
     try:
         return Dispatcher(service, principal, launcher, args.project, parallel=args.parallel, router=router,
-                          capacity=capacity, router_with_engine=True,
+                          capacity=capacity, router_with_engine=True, cloud_placer=cloud_placer,
                           json_events=bool(getattr(args, "json", False)),
                           knowledge_store=knowledge_store,
                           stale_minutes=getattr(args, "stale_minutes", DEFAULT_STALE_MINUTES)).run(once=args.once)
