@@ -446,3 +446,20 @@ def test_mcp_promote_refuses_a_naive_deadline_reviewed_before_offsets_were_requi
     message = pt.projects_promote("legacy", "obs", naive, subtasks)
     assert message == "REJECTED: deadline needs an explicit UTC offset, e.g. 2026-11-13T18:00-08:00"
     assert pt.projects_get("legacy") == before
+
+
+def test_touches_overlap_compares_repository_names_case_insensitively() -> None:
+    """Review P2 on #461: Owner/Repo and owner/repo are the same checkout."""
+    from lazytools.projects.task_fields import touches_overlap
+
+    left = {"repo": "Owner/Repo", "touches": ["src/a/*.py"]}
+    assert touches_overlap(left, {"repo": "owner/repo", "touches": ["src/a/x.py"]})
+    assert not touches_overlap(left, {"repo": "owner/other", "touches": ["src/a/x.py"]})
+
+
+def test_touches_overlap_treats_missing_repos_as_the_same_default_checkout() -> None:
+    """Review P2 on #461: tasks without `repo` run in the default checkout, so they can overlap."""
+    from lazytools.projects.task_fields import touches_overlap
+
+    assert touches_overlap({"touches": ["src/a.py"]}, {"touches": ["src/*.py"]})
+    assert not touches_overlap({"touches": ["src/a.py"]}, {"repo": "owner/repo", "touches": ["src/a.py"]})
