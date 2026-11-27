@@ -1988,6 +1988,11 @@ the bridge's configured per-engine local concurrency limits still apply.
 Events are line-oriented on stdout: `ready TASK`, `claimed TASK`, `launched JOB`,
 `done TASK`, `failed TASK REASON`, and `blocked TASK`.
 
+The dispatcher loop, routing, and heartbeat checks live in
+`lazytools.code_bridge._dispatch`. Job launch and conversation resume helpers live in
+`lazytools.code_bridge._dispatch_launch`. Checkout settlement, acceptance checks,
+publication, and landing live in `lazytools.code_bridge._dispatch_workspace`.
+
 ### Local tasks
 
 Before creating a new task clone, the dispatcher fetches the source repository's `origin`

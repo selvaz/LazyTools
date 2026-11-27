@@ -145,7 +145,7 @@ def dispatch_queue(tmp_path):
 
 
 def test_expired_local_intent_retries_once_and_keeps_its_continuation(dispatch_queue, tmp_path, monkeypatch):
-    from lazytools.code_bridge import _dispatch
+    from lazytools.code_bridge import _dispatch, _dispatch_launch
     from lazytools.projects.task_service import AttemptContinuation
     from test_projects_task_service import OPERATOR, PROJECT, admit, claim, placement, revision, task
 
@@ -156,7 +156,7 @@ def test_expired_local_intent_retries_once_and_keeps_its_continuation(dispatch_q
     service.prepare_attempt(OPERATOR, task_id, revision(service, "local"), "continue work", continuation=continuation)
     placement(service, "local")
     first = claim(service, "local", principal=OPERATOR)
-    launcher = _dispatch.BridgeLauncher(str(tmp_path / "jobs.sqlite"), OPERATOR, PROJECT)
+    launcher = _dispatch_launch.BridgeLauncher(str(tmp_path / "jobs.sqlite"), OPERATOR, PROJECT)
     launches, events = [], []
     monkeypatch.setattr(launcher, "launch", lambda task, receipt: launches.append((task, receipt)) or "missing-job")
 
@@ -183,7 +183,7 @@ def test_expired_local_intent_retries_once_and_keeps_its_continuation(dispatch_q
 
 @pytest.mark.parametrize("outcome", ["adopted", "legacy-adopted", "absent", "recorded-absent", "unavailable"])
 def test_expired_cloud_submission_reconciles_provider_outcome(dispatch_queue, tmp_path, monkeypatch, outcome):
-    from lazytools.code_bridge import _cloud, _cloud_stop, _dispatch
+    from lazytools.code_bridge import _cloud, _cloud_stop, _dispatch, _dispatch_launch
     from test_projects_task_service import OPERATOR, PROJECT, admit, claim, placement, task
 
     projects, service = dispatch_queue
@@ -192,7 +192,7 @@ def test_expired_cloud_submission_reconciles_provider_outcome(dispatch_queue, tm
     first = claim(service, "cloud", principal=OPERATOR)
     task_id, token, attempt = first["task_id"], first["claim_token"], first["attempt"]
     service.begin_submit(OPERATOR, task_id, token)
-    job_id = _dispatch.cloud_job_id(token)
+    job_id = _dispatch_launch.cloud_job_id(token)
     if outcome in ("absent", "recorded-absent"):
         # An older dispatcher could acknowledge the bridge record without a provider handle.
         service.record_submit(OPERATOR, task_id, token, job_id)
@@ -240,7 +240,7 @@ def test_expired_cloud_submission_reconciles_provider_outcome(dispatch_queue, tm
     monkeypatch.setattr(_cloud_stop.subprocess, "run", cli_list)
     monkeypatch.setattr(_cloud_stop, "_credentials", lambda _engine: ("fake-token", "fake-account"))
     monkeypatch.setattr(_cloud_stop, "_request", details)
-    launcher = _dispatch.BridgeLauncher(str(db), OPERATOR, PROJECT)
+    launcher = _dispatch_launch.BridgeLauncher(str(db), OPERATOR, PROJECT)
     launches, events = [], []
     monkeypatch.setattr(launcher, "launch_cloud", lambda task, receipt, job_id: launches.append(receipt) or job_id)
 

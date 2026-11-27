@@ -89,6 +89,10 @@ Docs: [code-bridge.md](code-bridge.md), [code-bridge-cloud-setup.md](code-bridge
 
 State lives in a LazyBridge `Store` (SQLite). Docs: [projects.md](projects.md). `LAZYTOOLS_PROJECTS_STORE_DB` selects the file (also reads `LAZYCEO_CEO_STORE_DB`); `lazytools-projects` and the code bridge default to `~/.lazytools/projects.sqlite`.
 
+The project dispatcher lives in `lazytools.code_bridge._dispatch`, with job launch
+and resume in `lazytools.code_bridge._dispatch_launch` and checkout acceptance and
+publication in `lazytools.code_bridge._dispatch_workspace`.
+
 | Capability | How to call | What it does | Status | Docs |
 | --- | --- | --- | --- | --- |
 | Dispatch a whole project graph | `lazytools-code-bridge dispatch --project ID [--parallel N] [--once] [--dry-run] [--repo-root SLUG=PATH] [--worktree-root P] [--land]` | Claims ready tasks, launches bridge jobs per task tier/placement, records terminal evidence, completes/fails (failure blocks only the dependent branch). Events `ready/claimed/launched/done/failed/blocked TASK`; polls every 15 s; adopts already-submitted jobs, no duplicates. A task with `requested_placement: cloud` runs through `run --where cloud --allow-cloud --open-pr --land` (routed engine, cloud environment required, `[cloud]` concurrency limits respected) and is accepted only if it landed (PR URL and pushed commit) and its `checks` pass in a local clone of the landed branch. After accepting a local task, `--land` pushes its published `dispatch/<project>/<task>` branch to origin (fast-forward only, never the default branch) and opens a PR with `gh` if one does not already exist. The follow-up event is `landed TASK PR_URL` or `land-failed TASK REASON` | live-tested (on branch dispatch-placement; main has the base version); cloud placement and `--land` unit-tested | code-bridge.md#dispatching-a-project |
