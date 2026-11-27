@@ -10,7 +10,7 @@ from typing import Any
 
 import pytest
 
-from lazytools.code_bridge import _coder, _jobs, _lockfile, _store, cli
+from lazytools.code_bridge import _coder, _credentials, _jobs, _lockfile, _store, cli
 from lazytools.code_bridge._mcp_fleet import FleetTools
 from lazytools.mcp_server.catalog import tool_metadata
 from lazytools.mcp_server.providers import PROVIDER_FACTORIES
@@ -139,6 +139,21 @@ def test_supervised_mode_approves_only_delegated_classes(tickets) -> None:
         assert not result["ok"] and "owner decision required" in result["error"]
         assert f"class {kind} is not delegated to the CEO in supervised mode" in result["error"]
         assert registry.inspect(held[kind]).status == "pending"
+
+
+def test_owner_revocation_withdraws_ceo_authority_at_once(tickets) -> None:
+    registry, held, _, tools = tickets
+    # The saved hand still lists the card; only the live card registry knows it is revoked.
+    credential = _credentials.load(registry.path)
+    for card in _coder.show(registry.path).cards:
+        if card.action_class == "git_push_job_branch":
+            assert registry.queue.revoke_card(card.card_id, credential=credential)
+    assert _coder.ceo_may_approve(registry.path, "git_push_job_branch") == ("supervised", False)
+    result = _run(tools, "bridge_approve", ticket=held["git_push_job_branch"], reason="pushed after review")
+    assert not result["ok"] and "owner decision required" in result["error"]
+    assert registry.inspect(held["git_push_job_branch"]).status == "pending"
+    # A delegated class whose cards are still live keeps its authority.
+    assert _coder.ceo_may_approve(registry.path, "git_local") == ("supervised", True)
 
 
 def test_total_mode_approves_outside_the_owner_floor(tickets) -> None:
