@@ -2034,6 +2034,32 @@ later task that revises the branch updates that PR. Landing emits a follow-up ev
 already accepted and its dependants are eligible to run. `gh` must be
 installed and authenticated (`gh auth login` or `GH_TOKEN`).
 
+### Dispatcher recovery
+
+Each dispatcher claim has a 180-second lease by default. Set it with
+`--lease-seconds` or `--lease-minutes`. The dispatcher renews its claims together
+on each tick. Renewal continues during acceptance checks and landing, so jobs
+can run longer than one lease. The engine heartbeat settings still apply.
+
+The claim records the dispatcher instance, host, PID, and process start time.
+A replacement on the same host can recover a claim on its next tick if that
+process exited or the PID was reused. If it cannot establish that the owner
+exited, it can recover the claim when the lease expires. A claim without a job
+is released for a new attempt within the retry budget. An existing job is adopted using the
+claim's job ID, including when the old dispatcher stopped before recording
+the acknowledgement. Older receipts without a dispatcher identity retain
+their recorded expiry.
+
+Terminal jobs are settled on the next tick. A local job interrupted by
+`cancel` follows the crash retry path, which saves the attempt's work before
+retrying. A recovered finished job runs any outstanding acceptance checks
+against its existing checkout. Pending local `--land` work is recorded when
+the task is accepted, so a replacement can finish the push and reuse an open PR
+even if it starts without `--land`.
+
+On Ctrl+C or SIGTERM, the dispatcher releases its unsubmitted claims and stops
+renewing the rest. Already submitted jobs can continue for a replacement to adopt.
+
 ### Cloud tasks
 
 A task whose `requested_placement` is `cloud` runs on a cloud agent through the
@@ -2063,7 +2089,4 @@ same path as `run --where cloud`; the dispatcher adds no cloud logic of its own.
   artifact. Otherwise the task fails with the reason: the job's error, `cloud job
   did not land: ...`, or the failing check and its output. A restarted dispatcher
   settles running cloud jobs on its next pass. Cloud tasks are not retried.
-- **Lease.** The claim lease (`--lease-minutes`, default 60) also bounds a cloud
-  job. When it expires, the job is cancelled and the task fails. Raise the
-  lease for long cloud tasks.
 - Review and contract tasks are still not dispatched, locally or in the cloud.

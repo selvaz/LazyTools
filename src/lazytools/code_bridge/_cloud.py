@@ -72,6 +72,7 @@ import subprocess
 import sys
 import time
 import tomllib
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -1308,6 +1309,7 @@ def submit_job(
     title: str | None = None,
     network: bool = False,
     extra_meta: dict[str, Any] | None = None,
+    submit_guard: Callable[[], None] | None = None,
 ) -> dict[str, Any]:
     """Submit ``task`` to the cloud provider for ``engine``; return the job record.
 
@@ -1431,6 +1433,8 @@ def submit_job(
     except Exception as exc:
         print(f"warning: cloud job submitted locally but its relaunch intervention could not be recorded: {exc}", file=sys.stderr)
     try:
+        if submit_guard is not None:
+            submit_guard()
         sub = _submit_with_retry(
             prov, store, config, engine,
             dict(repo_dir=root, env_id=env_id, branch=branch, prompt=CLOUD_PREAMBLE + brief + CLOUD_REPORT_SUFFIX,

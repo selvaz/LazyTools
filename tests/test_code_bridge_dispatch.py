@@ -48,7 +48,7 @@ class FakeService:
                               "dependencies": row.get("dependencies", [])})
         return {"tasks": ready[:limit]}
 
-    def claim(self, principal: Any, identifier: str, revision: str, key: str) -> dict[str, Any]:
+    def claim(self, principal: Any, identifier: str, revision: str, key: str, **_kwargs: Any) -> dict[str, Any]:
         name = identifier.rsplit("/", 1)[1]
         receipt = {"task_id": identifier, "revision": revision, "claim_token": f"token-{name}",
                    "attempt": 1, "executor": principal.actor, "engine_family": "codex",
@@ -63,7 +63,9 @@ class FakeService:
                  state: str, _evidence: str, _outcome: str) -> None:
         self.rows[identifier.rsplit("/", 1)[1]]["status"] = "done" if state == "accepted" else "failed"
 
-    def fail_local_launch(self, _principal: Any, identifier: str, _token: str, _error: str) -> None:
+    def fail_local_launch(
+        self, _principal: Any, identifier: str, _token: str, _error: str, **_kwargs: Any,
+    ) -> None:
         self.rows[identifier.rsplit("/", 1)[1]]["status"] = "failed"
 
     def reconcile_dispatch(self, *args: Any, **kwargs: Any) -> None: pass
@@ -1394,8 +1396,8 @@ def _retrying_dispatch(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Any:
     numbers = iter(range(1, 10))
     real_claim = service.claim
 
-    def claim(*args: Any) -> dict[str, Any]:
-        result = real_claim(*args)
+    def claim(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        result = real_claim(*args, **kwargs)
         result["claim"]["attempt"] = next(numbers)
         jobs["job-A"] = {"job_id": "job-A", "status": "running"}
         return result
@@ -1592,7 +1594,7 @@ def _real_retrying_dispatch(
     The fake bridge submits through the service's dispatch fence, or, with refuse_resume,
     records a failed job for a resumed conversation before begin_submit (check_resume).
     """
-    from lazytools.code_bridge._dispatch_launch import RESUME_PROMPT
+    from lazytools.code_bridge._dispatch_launch import RESUME_PROMPT, local_job_id
     from lazytools.code_bridge.cli import _read_task
     from lazytools.connectors.projects import ProjectsTools
     from lazytools.projects.plan_edit import _board_key
@@ -1620,7 +1622,7 @@ def _real_retrying_dispatch(
         argv[argv.index("--task") + 1] = _read_task(_flag(argv, "--task"))
         launched.append(argv)
         task_id, token = _flag(argv, "--task-id"), _flag(argv, "--claim-token")
-        job_id = f"{len(launched):032x}"
+        job_id = local_job_id(token)
         attempt = service.dispatch_status(principal, task_id)["attempt"]
         job = {"job_id": job_id, "task_id": task_id, "task_attempt": attempt, "status": "running",
                "cwd": _flag(argv, "--cwd"), "engine": "codex", "session_name": _flag(argv, "--session")}
@@ -1653,9 +1655,9 @@ def _real_retrying_dispatch(
         first.pass_once()
         clone = Path(_flag(launched[0], "--cwd"))
         (clone / "work.txt").write_text("half done\n")
-        jobs[f"{1:032x}"].update(status="failed", error="Codex App Server exited before completing the request",
-                                 native_id="thread-1")
-        jobs[f"{1:032x}"].update(result)
+        jobs[local_job_id(_flag(launched[0], "--claim-token"))].update(
+            status="failed", error="Codex App Server exited before completing the request", native_id="thread-1")
+        jobs[local_job_id(_flag(launched[0], "--claim-token"))].update(result)
         return first
 
     def board_task() -> dict[str, Any]:
@@ -1708,11 +1710,12 @@ def test_check_retries_resume_and_recheck(
         assert "check saw " + ("half done" if attempt == 1 else f"broken {attempt - 1}") in prompt
         (clone / "work.txt").write_text("fixed\n" if fixed else f"broken {attempt}\n")
         git("commit", "-qam", "Repair the check failure")
-        job = restarted.launcher.job(f"{attempt + 1:032x}")
+        job = restarted.launcher.job(board_task()["dispatches"][-1]["job_ref"])
         assert job is not None
         job.update(status="done", native_id="thread-1")
         # Settle without routing so each retry is launched by a new dispatcher.
-        dispatcher(events).pass_once()
+        restarted.router = None
+        restarted.pass_once()
 
     assert len(launched) == retries + 1
     assert sum(event.startswith("retry queue-test/A check failed") for event in events) == retries

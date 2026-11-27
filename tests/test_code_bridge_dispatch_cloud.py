@@ -84,6 +84,8 @@ class FakeCloudLauncher:
 def service(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> ProjectTaskService:
     monkeypatch.delenv("LAZYTOOLS_PROJECTS_STORE_DB", raising=False)
     monkeypatch.delenv("LAZYCEO_CEO_STORE_DB", raising=False)
+    # Each replacement Dispatcher represents a newly started process.
+    monkeypatch.setattr(Dispatcher, "_owner_is_dead", lambda _self, _owner: True)
     path = str(tmp_path / "projects.sqlite")
     projects = ProjectsTools(store_db=path, allow_write=True)
     projects.projects_create(PROJECT, "Cloud dispatch", "Dispatch a task to a cloud agent")
@@ -217,13 +219,13 @@ def test_a_submit_deferred_by_a_busy_store_survives_a_restart(
     launcher, events = FakeCloudLauncher(*landed), []  # type: FakeCloudLauncher, list[str]
     begin_submit = service.begin_submit
 
-    def begin_while_locked(*args: Any) -> None:
+    def begin_while_locked(*args: Any, **kwargs: Any) -> None:
         lock = sqlite3.connect(str(service.path))
         try:
             lock.execute("BEGIN IMMEDIATE")
             with monkeypatch.context() as patch:
                 patch.setenv("LAZYBRIDGE_STORE_BUSY_TIMEOUT", "0.01")
-                begin_submit(*args)
+                begin_submit(*args, **kwargs)
         finally:
             lock.close()
 
@@ -241,10 +243,9 @@ def test_a_submit_deferred_by_a_busy_store_survives_a_restart(
     restarted.pass_once()
     data = board_task(service)
     assert len(launcher.launches) == 1, events
-    assert len(data["dispatches"]) == 1
+    assert [row["state"] for row in data["dispatches"]] == ["absent", "submitted"]
     assert data["dispatches"][-1]["state"] == "submitted"
     assert data["dispatches"][-1]["job_ref"] == launcher.launches[0][2]
-    assert not [line for line in events if line.startswith("failed")], events
 
 
 def test_another_executors_unsubmitted_cloud_claim_is_left_alone(
@@ -292,10 +293,10 @@ def test_restart_after_lease_expiry_settles_recorded_accepted_evidence(
     def die(*_args: Any, **_kwargs: Any) -> None:
         raise KeyboardInterrupt("dispatcher stopped after recording evidence")
 
-    monkeypatch.setattr(service, "complete", die)
-    with pytest.raises(KeyboardInterrupt):
-        dispatcher(service, launcher, events).pass_once()
-    monkeypatch.undo()
+    with monkeypatch.context() as patch:
+        patch.setattr(service, "complete", die)
+        with pytest.raises(KeyboardInterrupt):
+            dispatcher(service, launcher, events).pass_once()
     data = board_task(service)
     assert data["status"] == "claimed"
     assert [record["state"] for record in data["dispatches"][-1]["evidence"].values()] == ["accepted"]
@@ -306,11 +307,8 @@ def test_restart_after_lease_expiry_settles_recorded_accepted_evidence(
                            cloud_placer=lambda _task, _tier: ("codex", "env-123"), clock=lambda: later)
     restarted.pass_once()
     data = board_task(service)
-    assert data["status"] == "failed", events
-    assert data["error"] == "claim lease expired"
-    assert data["dispatches"][-1]["completion"]["result"]["state"] == "blocked"
-    restarted.pass_once()  # the dependant is no longer waiting on a claimed task
-    assert f"blocked {PROJECT}/B" in events
+    assert data["status"] == "done", events
+    assert data["dispatches"][-1]["completion"]["result"]["state"] == "accepted"
     assert len(launcher.launches) == 1
 
 
