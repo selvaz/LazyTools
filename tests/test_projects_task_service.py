@@ -276,7 +276,7 @@ def test_review_digest_covers_fields_and_revision_preserves_legacy(queue):
     second = task(
         "second", "critical", dependency_ids=["@0"], requested_profile="read",
         requested_network=False, requested_placement="cloud", effective_placement="local",
-        placement_reason="Preflight pending",
+        placement_reason="Preflight pending", title="Second task title",
     )
     args = (PROJECT, "Artifacts are visible", "2027-01-01T00:00:00Z")
     assert projects.projects_review_plan(*args, [first, second])["ok"]

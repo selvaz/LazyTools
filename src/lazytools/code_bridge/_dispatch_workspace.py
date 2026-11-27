@@ -5,7 +5,7 @@ import os
 import re
 import subprocess
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any
 
 from lazytools.code_bridge import _cloud, _cloud_land, _gh
@@ -238,6 +238,16 @@ def _publish(cwd: Path) -> tuple[str | None, str | None]:
     return expected, None
 
 
+def _sanitize_check(command: str) -> str:
+    """Hide machine-local paths in the published check list."""
+    parts = _split_command(command)
+    if not parts:
+        return command
+    parts[0] = PureWindowsPath(parts[0]).name  # splits on both separators on every platform
+    # Only a path that starts a word or an option value is absolute: `tests/x.py` stays.
+    return re.sub(r"""(?i)(?<![^\s="'])(?:[A-Z]:[\\/]|/)[^\s`"']+""", "<local>", " ".join(parts))
+
+
 def _land(cwd: Path, branch: str, task_id: str, data: dict[str, Any],
           checks: list[str]) -> tuple[str | None, str | None]:
     """Push a published branch to the clone's origin and open its PR (or reuse an open one).
@@ -253,13 +263,16 @@ def _land(cwd: Path, branch: str, task_id: str, data: dict[str, Any],
         existing = _gh.pr_for_branch(repo, branch)
         if existing and existing.get("url"):
             return str(existing["url"]), None  # a revision of the branch updates its PR
-        text_lines = str(data.get("text") or "").strip().splitlines()
-        title = str(data.get("title") or (text_lines[0] if text_lines else task_id)).strip()[:200] or task_id
+        title = str(data.get("title") or "").strip()[:200]
+        if not title:
+            lines = str(data.get("text") or "").strip().splitlines()
+            sentence = re.split(r"(?<=[.!?])\s+", lines[0], maxsplit=1)[0].rstrip(".") if lines else ""
+            title = _cloud_land._short_title(sentence) or task_id
         criteria = data.get("acceptance_criteria") or []
         body = "\n".join([
             f"Task: `{task_id}`", "", "Acceptance criteria:",
             *([f"- {item}" for item in criteria] or ["- none recorded"]), "",
-            "Checks that passed:", *([f"- `{command}`" for command in checks] or ["- none configured"]),
+            "Checks that passed:", *([f"- `{_sanitize_check(command)}`" for command in checks] or ["- none configured"]),
         ]) + "\n"
         return _gh.pr_create(repo, base=base, head=branch, title=title, body=body), None
     except (CloudError, subprocess.TimeoutExpired) as exc:

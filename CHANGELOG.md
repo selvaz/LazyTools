@@ -12,6 +12,7 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 - `lazytools-orchestration-mcp --allow-unsafe` sends each new approval ticket to the client as `notifications/message`, read from the same event source as `bridge_events`.
 
 ### Fixed
+- `dispatch --land` titles the PR with the task's `title` (plans now keep that field) or the first sentence of its first line, at most 72 characters, and hides absolute local paths in the published check list.
 - `dispatch` fetches the source repository's origin and fast-forwards its clean base branch before creating a task clone, so later tasks include PRs merged meanwhile; a source it cannot update is reported as `waiting <task> source base is stale: <why>`, and the dispatch receipt records `base_commit`.
 
 ## [0.15.0] — 2026-11-26

@@ -12,7 +12,7 @@ TIERS = ("basic", "writing", "thinking", "critical")
 PLACEMENTS = ("local", "cloud")
 _TEXT_FIELDS = (
     "task_id", "parent_id", "requested_profile", "placement_reason", "preflight_ref",
-    "repo", "assigned_branch", "review_of",
+    "repo", "assigned_branch", "review_of", "title",
 )
 
 

@@ -921,6 +921,39 @@ def test_land_pushes_the_published_branch_and_opens_a_pr(tmp_path: Path, monkeyp
     assert len(gh.created()) == 1
 
 
+def test_land_uses_task_title_and_sanitizes_check_paths(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from lazytools.code_bridge._dispatch_workspace import _land
+
+    gh = FakeGh()
+    clone, _remote, _bridge, _remote_git = _landing_setup(tmp_path, monkeypatch, gh)
+    assert _land(clone, "dispatch/p/A", "p/A", {
+        "title": "Chosen task title", "text": "Fallback sentence.",
+    }, [r"D:\\work\\venv\\Scripts\\python.exe -m pytest D:\\work\\repo\\tests",
+        "pytest --rootdir=/home/me/repo tests/test_x.py"])[1] is None
+    (args, body), = gh.created()
+    assert args[args.index("--title") + 1] == "Chosen task title"
+    assert "python.exe -m pytest <local>" in body
+    assert "D:\\work" not in body
+    assert "pytest --rootdir=<local> tests/test_x.py" in body
+
+
+@pytest.mark.parametrize(("text", "expected"), [
+    ("A concise first sentence. More details follow.", "A concise first sentence"),
+    ("word " * 20, "word " * 13 + "word"),
+    ("Fix _land.py in v1.2\nMore detail.", "Fix _land.py in v1.2"),
+])
+def test_land_falls_back_to_first_sentence_at_word_boundary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, text: str, expected: str,
+) -> None:
+    from lazytools.code_bridge._dispatch_workspace import _land
+
+    gh = FakeGh()
+    clone, _remote, _bridge, _remote_git = _landing_setup(tmp_path, monkeypatch, gh)
+    assert _land(clone, "dispatch/p/A", "p/A", {"text": text}, [])[1] is None
+    (args, _body), = gh.created()
+    assert args[args.index("--title") + 1] == expected
+
+
 def test_land_can_outlast_the_claim_lease(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     from lazytools.code_bridge import _gh
     from lazytools.code_bridge._dispatch import _tasks

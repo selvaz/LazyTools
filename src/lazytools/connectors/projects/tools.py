@@ -421,7 +421,7 @@ class ProjectsTools:
         passes, record that THIS caller reviewed it (by digest).
 
         ``subtasks`` is ``[{"text": ..., "acceptance_criteria": [...]}, ...]``.
-        Subtasks can also set task_id, dependency_ids, tier, requested_profile,
+        Subtasks can also set title, task_id, dependency_ids, tier, requested_profile,
         requested_network, requested_placement, effective_placement and placement_reason.
         ``deadline`` needs an explicit UTC offset, e.g. 2026-11-13T18:00-08:00;
         date-only values are refused (they do not represent a whole day).
