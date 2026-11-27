@@ -324,6 +324,100 @@ def test_supervised_cards_approve_checks_in_the_checkout(checks_channel):
     assert isinstance(temp_cwd, CardApproval)
 
 
+def test_windows_shell_wrappers_use_the_direct_cards(checks_channel):
+    cwd, _, channel = checks_channel
+    git(cwd, "update-ref", "refs/remotes/origin/main", "HEAD")
+    powershell = r'"C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe" -Command'
+    cases = [
+        (powershell, "git add -- src/mod.py", "git_local"),
+        (powershell, "git merge origin/main", "git_local"),
+        (powershell, 'git commit -m "Record changes"', "git_local"),
+        ("pwsh -NoProfile -Command", "python -m pytest -q tests/test_mod.py > out.log", "checks_in_checkout"),
+        ("pwsh -Command", "git push origin feature/work", "git_push_job_branch"),
+        ("powershell.exe -Command", "gh pr create --fill --head feature/work", "gh_pr_create"),
+        ("cmd.exe /c", "git status --short", "checks_in_checkout"),
+    ]
+    for launcher, command, kind in cases:
+        wrapped = f'{launcher} "{command}"' if launcher == "cmd.exe /c" else f"{launcher} '{command}'"
+        for text in (command, wrapped):
+            decision = channel._submit(request(cwd, text, provider="codex"), text)
+            assert isinstance(decision, CardApproval), text
+            assert decision.action_class == kind
+
+
+def test_windows_shell_wrappers_keep_unsafe_commands_pending(checks_channel):
+    cwd, temp, channel = checks_channel
+    (cwd / "git.cmd").write_text("@exit /b 1\n", encoding="utf-8")
+    outside_redirects = [
+        "powershell.exe -Command 'python -m pytest -q > ../outside.log'",
+        f"pwsh -Command 'python -m pytest -q > {(temp / 'out.log').as_posix()}'",
+    ]
+    commands = [
+        "powershell.exe -Command 'git add -- ../outside.txt'",
+        "pwsh -Command 'powershell.exe -Command git status'",
+        'powershell.exe -Command "cmd.exe /c git add -- src/mod.py"',
+        "cmd.exe /c 'git status | arbitrary-command'",
+        "pwsh -Command 'git status; git status'",
+        "pwsh -Command 'git status' > out.log",
+        "pwsh -File git status",
+        "pwsh -Command 'git push origin other/branch'",
+        "pwsh -Command 'gh pr create --fill --head other/branch'",
+        'cmd.exe /c "git status"',
+        'cmd.exe /c "git add -- %TARGET%"',
+    ]
+    for command in [*commands, *outside_redirects]:
+        decision = channel._submit(request(cwd, command, provider="codex"), command)
+        assert isinstance(decision, tuple) and decision[0].status == "pending", command
+        if command in outside_redirects:
+            assert decision[0].request.payload["ticket_class"] == "unknown", command
+
+
+def test_merge_card_rejects_hooks_and_merge_drivers(checks_channel):
+    cwd, _, channel = checks_channel
+    git(cwd, "update-ref", "refs/remotes/origin/main", "HEAD")
+    command = "powershell.exe -Command 'git merge origin/main'"
+    req = request(cwd, command, provider="codex")
+    hook = cwd / ".git" / "hooks" / "post-merge"
+    hook.write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+    assert channel._submit(req, command)[0].status == "pending"
+    hook.unlink()
+    git(cwd, "config", "merge.custom.driver", "external-merge")
+    assert channel._submit(req, command)[0].status == "pending"
+    git(cwd, "config", "--unset", "merge.custom.driver")
+
+
+@pytest.mark.parametrize("key", ["pull.twohead", "pull.octopus"])
+def test_merge_card_rejects_a_configured_default_strategy(checks_channel, key):
+    """Review P1 on #452: a configured default strategy can run an external git-merge-<name> program."""
+    cwd, _, channel = checks_channel
+    git(cwd, "update-ref", "refs/remotes/origin/main", "HEAD")
+    command = "powershell.exe -Command 'git merge origin/main'"
+    git(cwd, "config", key, "custom")
+    assert channel._submit(request(cwd, command, provider="codex"), command)[0].status == "pending"
+
+
+def test_merge_card_checks_the_job_branch_and_changed_paths(checks_channel):
+    cwd, _, channel = checks_channel
+    git(cwd, "checkout", "-b", "incoming")
+    (cwd / "src" / "incoming.py").write_text("VALUE = 2\n", encoding="utf-8")
+    git(cwd, "add", "--", "src/incoming.py")
+    git(cwd, "-c", "user.name=Bridge Trial", "-c", "user.email=bridge@example.invalid", "commit", "-m", "Incoming change")
+    git(cwd, "update-ref", "refs/remotes/origin/main", "HEAD")
+    command = "powershell.exe -Command 'git merge origin/main'"
+    req = request(cwd, command, provider="codex")
+    assert channel._submit(req, command)[0].status == "pending"
+
+    git(cwd, "checkout", "feature/work")
+    assert isinstance(channel._submit(req, command), CardApproval)
+    git(cwd, "checkout", "incoming")
+    (cwd / ".gitattributes").write_text("*.py text\n", encoding="utf-8")
+    git(cwd, "add", "--", ".gitattributes")
+    git(cwd, "-c", "user.name=Bridge Trial", "-c", "user.email=bridge@example.invalid", "commit", "-m", "Change attributes")
+    git(cwd, "update-ref", "refs/remotes/origin/main", "HEAD")
+    git(cwd, "checkout", "feature/work")
+    assert channel._submit(req, command)[0].status == "pending"
+
+
 def test_checks_outside_the_class_stay_pending(checks_channel, tmp_path):
     cwd, temp, channel = checks_channel
     outside = tmp_path / "outside"

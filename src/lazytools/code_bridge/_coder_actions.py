@@ -47,9 +47,14 @@ COMMANDS = tuple(dict.fromkeys((
 )))
 
 _POWERSHELL = re.compile(
-    r'(?:"?C:/Windows/System32/WindowsPowerShell/v1\.0/powershell\.exe"?|powershell(?:\.exe)?|pwsh(?:\.exe)?)'
+    r'(?:"C:/Windows/System32/WindowsPowerShell/v1\.0/powershell\.exe"'
+    r'|C:/Windows/System32/WindowsPowerShell/v1\.0/powershell\.exe'
+    r'|"C:/Program Files/PowerShell/7/pwsh\.exe"|powershell(?:\.exe)?|pwsh(?:\.exe)?)'
     r'(?:(?: +-(?:NoProfile|NonInteractive|NoLogo)))* +-(?:Command|c) +(.+)', re.IGNORECASE,
 )
+_CMD = re.compile(r'(?:(?:C:/Windows/System32/)?cmd\.exe|"C:/Windows/System32/cmd\.exe") +/c +(.+)', re.IGNORECASE)
+_SHELL_PAYLOAD = re.compile(r"""(?:'([^']+)'|"([^"]+)")""")
+_SHELL_BINARIES = {"powershell", "pwsh", "cmd", "sh", "bash", "dash", "zsh", "ksh", "fish"}
 _SHELL_META = re.compile(r'[;&|<>()`$%!^*?\[\]{}"\x00-\x1f\x7f]')
 # Trailing `> file`, `>> file`, `2> file` and `2>&1`. The targets hold no quotes,
 # so a match cannot start inside a quoted argument that is closed later.
@@ -60,6 +65,12 @@ _GIT_EXEC_CONFIG = (
     r"^(core\.(hookspath|fsmonitor)|diff\.(external|.+\.(command|textconv))|"
     r"filter\..+\.(clean|smudge|process)|lfs\.storage|commit\.gpgsign|maintenance\.prefetch\.enabled)$"
 )
+_GIT_MERGE_CONFIG = (
+    # pull.twohead / pull.octopus set the default merge strategy, which can run an external git-merge-<name>.
+    r"^(merge\.(.+\.driver|autostash|renormalize|verifysignatures)|branch\..+\.mergeoptions|"
+    r"pull\.(twohead|octopus)|core\.editor|submodule\.recurse|extensions\.partialclone|remote\..+\.promisor)$"
+)
+_GIT_MERGE_HOOKS = {"pre-merge-commit", "post-merge"}
 # Git LFS installs these same filters at system or global scope on any OS.
 _GIT_LFS_DEFAULTS = {
     "filter.lfs.clean": "git-lfs clean -- %f",
@@ -81,7 +92,7 @@ _CHECKS = (
 # The command prefixes describe candidate effects. Workspace checks still
 # have to establish the actual paths, branch and argument restrictions.
 TICKET_COMMANDS: dict[str, tuple[tuple[str, ...], ...]] = {
-    "git_local": (("git", "add"), ("git", "commit")),
+    "git_local": (("git", "add"), ("git", "commit"), ("git", "merge")),
     "git_push_job_branch": (("git", "push"),),
     "gh_pr_create": (("gh", "pr", "create"),),
     "gh_pr_merge": (("gh", "pr", "merge"),),
@@ -115,26 +126,27 @@ _PRODUCTION_PATH = re.compile(
 def ticket_class(
     command: str, *, job_branch: str | None = None, default_branch: str | None = None, powershell: bool = False,
 ) -> str:
-    """Classify one direct command. Unrecognized syntax stays with the owner."""
-    redirects: list[tuple[str, str]] = []
-    argv = _args(command, powershell=powershell, normalize_windows_paths=True, redirects=redirects)
-    if argv is None:
+    """Classify one command. Unrecognized syntax stays with the owner."""
+    parsed = _args(command, powershell=powershell, normalize_windows_paths=True, allow_redirects=True)
+    if parsed is None:
         return "unknown"
-    kind = _ticket_class(argv, touched_paths(argv, redirects), job_branch, default_branch)
+    argv, redirects, _ = parsed
+    return _ticket_class(argv, redirects, job_branch, default_branch)
+
+
+def _ticket_class(
+    argv: list[str], redirects: list[tuple[str, str]], job_branch: str | None, default_branch: str | None,
+) -> str:
+    kind = _argv_class(argv, (*argv, *(target for _, target in redirects)), job_branch, default_branch)
     # Only verification commands may redirect their output (into the job's own directories).
     return "unknown" if redirects and kind not in {"checks_in_checkout", "production_task"} else kind
-
-
-def touched_paths(argv: list[str], redirects: list[tuple[str, str]]) -> tuple[str, ...]:
-    """Every path word a command may read or write: its argv and its redirection targets."""
-    return (*argv, *(target for _, target in redirects))
 
 
 def production_path(path: str) -> bool:
     return bool(_PRODUCTION_PATH.search(path.replace("\\", "/")))
 
 
-def _ticket_class(
+def _argv_class(
     argv: list[str], paths: tuple[str, ...], job_branch: str | None, default_branch: str | None,
 ) -> str:
     binary = argv[0].replace("\\", "/").rsplit("/", 1)[-1].lower().removesuffix(".exe")
@@ -165,32 +177,46 @@ def _ticket_class(
 
 
 def _args(
-    command: str, *, powershell: bool, normalize_windows_paths: bool = False,
-    redirects: list[tuple[str, str]] | None = None,
-) -> list[str] | None:
-    """Split one simple command into argv.
-
-    With a ``redirects`` list, trailing output redirections are removed and
-    appended to it as (operator, target); otherwise any redirection is refused.
-    """
-    # A backslash is a path separator in PowerShell and an escape in Bash.
-    if powershell and (os.name == "nt" or normalize_windows_paths):
-        command = command.replace("\\", "/")
-        wrapper = _POWERSHELL.fullmatch(command.strip())
+    command: str, *, powershell: bool, normalize_windows_paths: bool = False, allow_redirects: bool = False,
+) -> tuple[list[str], list[tuple[str, str]], Literal["powershell", "cmd"] | None] | None:
+    """Parse a direct command or one literal Windows shell invocation."""
+    command = command.strip(" ")
+    shell: Literal["powershell", "cmd"] | None = None
+    if powershell:
+        # Backslashes are path separators in PowerShell, but escapes in Bash.
+        windows = command.replace("\\", "/").removeprefix("& ").lstrip(" ")
+        wrapper = _POWERSHELL.fullmatch(windows)
+        if wrapper is None:
+            wrapper = _CMD.fullmatch(windows)
         if wrapper:
+            if re.search(r"""\\['"]""", command):
+                return None
+            shell = "cmd" if wrapper.re is _CMD else "powershell"
             command = wrapper[1]
-            if command[:1] in ("'", '"') and command[-1:] == command[:1]:
-                command = command[1:-1]
-        if command.startswith("& "):
-            command = command[2:]
-    command = command.strip()
-    if redirects is not None and (tail := _REDIRECTS.search(command)):
+            if payload := _SHELL_PAYLOAD.fullmatch(command):
+                command = payload[1] or payload[2]
+                # cmd does not treat single quotes as quoting, and has its
+                # own rules for stripping double quotes after /c.
+                if shell == "cmd" and ("'" in command or '"' in command):
+                    return None
+            elif "'" in command or _SHELL_META.search(command):
+                return None
+            if shell == "powershell":
+                command = command.strip(" ").removeprefix("& ")
+        elif os.name == "nt" or normalize_windows_paths:
+            command = windows
+    command = command.strip(" ")
+    redirects: list[tuple[str, str]] = []
+    if allow_redirects and (tail := _REDIRECTS.search(command)):
         redirects.extend((m[1], m[2]) for m in _REDIRECT.finditer(tail[0]) if m[1])
         command = command[:tail.start()]
     words = _tokenize(command)
     if not words or any(_SHELL_META.search(word.text) for word in words):
         return None
-    return [word.text for word in words]
+    argv = [word.text for word in words]
+    if shell and argv[0].rsplit("/", 1)[-1].casefold().removesuffix(".exe") in _SHELL_BINARIES:
+        return None
+    return argv, redirects, shell
 
 
 def _linked(info: os.stat_result) -> bool:
@@ -277,10 +303,11 @@ def _git_metadata(cwd: Path) -> tuple[Path, Path] | None:
     return worktree_dir, common_dir
 
 
-def _git_execution_is_local(cwd: Path, common_dir: Path, *, writes: bool) -> bool:
+def _git_execution_is_local(cwd: Path, common_dir: Path, *, writes: bool, merge: bool = False) -> bool:
+    config = f"{_GIT_EXEC_CONFIG}|{_GIT_MERGE_CONFIG}" if merge else _GIT_EXEC_CONFIG
     try:
         settings = subprocess.run(
-            ["git", "config", "--show-scope", "--get-regexp", _GIT_EXEC_CONFIG],
+            ["git", "config", "--show-scope", "--get-regexp", config],
             cwd=cwd, capture_output=True, text=True, timeout=5, check=False,
         )
     except (OSError, subprocess.SubprocessError, UnicodeError):
@@ -295,13 +322,15 @@ def _git_execution_is_local(cwd: Path, common_dir: Path, *, writes: bool) -> boo
             or (os.name == "nt" and key == "diff.astextplain.textconv" and value == "astextplain")
         ):
             continue
-        if key in {"core.fsmonitor", "commit.gpgsign", "maintenance.prefetch.enabled"} and value.lower() in {
-            "false", "no", "off", "0",
-        }:
+        if key in {
+            "core.fsmonitor", "commit.gpgsign", "maintenance.prefetch.enabled",
+            "merge.autostash", "merge.renormalize", "merge.verifysignatures", "submodule.recurse",
+        } and value.lower() in {"false", "no", "off", "0"}:
             continue
         return False
+    hooks = _GIT_HOOKS | _GIT_MERGE_HOOKS if merge else _GIT_HOOKS
     return not writes or all(
-        not os.path.lexists(common_dir / "hooks" / hook) for hook in _GIT_HOOKS
+        not os.path.lexists(common_dir / "hooks" / hook) for hook in hooks
     )
 
 
@@ -430,7 +459,9 @@ class Workspace:
         if self.git_metadata is None or _git_metadata(cwd) != self.git_metadata:
             return None
         subcommand, args = argv[1], argv[2:]
-        if not _git_execution_is_local(cwd, self.git_metadata[1], writes=subcommand in {"add", "commit"}):
+        if not _git_execution_is_local(
+            cwd, self.git_metadata[1], writes=subcommand in {"add", "commit", "merge"}, merge=subcommand == "merge",
+        ):
             return None
         if subcommand == "add":
             if not is_simple_git_add(_quoted(argv)) or not args:
@@ -460,11 +491,40 @@ class Workspace:
                 return None
             path = self._write(message, cwd)
             return (path,) if path is not None and path.is_file() and not message.startswith("-") else None
+        if subcommand == "merge":
+            return self._git_merge(args, cwd)
         if tuple(argv[1:]) in _GIT_METADATA:
             return (cwd,)
         if subcommand == "rev-parse" and args[:1] == ["--git-path"]:
             return (cwd,) if len(args) == 2 and _readonly.operand_ok(args[1], git=False) else None
         return self._read(argv, cwd)
+
+    def _git_merge(self, args: list[str], cwd: Path) -> tuple[Path, ...] | None:
+        # Accept one unambiguous local origin tracking ref and no merge options.
+        if len(args) != 1 or not re.fullmatch(r"origin/[A-Za-z0-9_/-][A-Za-z0-9_./-]*", args[0]):
+            return None
+        if (
+            self.branch in {None, "main", "master", self.default_branch}
+            or short_branch(_git_value(cwd, "symbolic-ref", "--quiet", "HEAD")) != self.branch
+        ):
+            return None
+        if os.environ.get("GIT_EDITOR", "") not in {"", ":", "true"} or os.environ.get(
+            "GIT_MERGE_AUTOEDIT", "",
+        ).lower() not in {"", "false", "no", "off", "0"}:
+            return None
+        revision = _git_value(cwd, "rev-parse", "--verify", f"refs/remotes/{args[0]}^{{commit}}")
+        if not revision or revision != _git_value(cwd, "rev-parse", "--verify", f"{args[0]}^{{commit}}"):
+            return None
+        changed = subprocess.run(
+            ["git", "diff-tree", "--no-commit-id", "--name-only", "--no-renames", "-r", "-z", "HEAD", revision],
+            cwd=cwd, capture_output=True, timeout=5, check=False,
+        )
+        if changed.returncode or any(
+            production_path(path) or self._write(path, cwd) is None
+            for path in changed.stdout.decode("utf-8").split("\0") if path
+        ):
+            return None
+        return (cwd,)
 
     def _read(self, argv: list[str], cwd: Path) -> tuple[Path, ...] | None:
         if argv[0] == "gh" or ("-R" in argv[1:] and argv[0] == "grep") or (
@@ -557,9 +617,17 @@ class Workspace:
             return "production_task"
         command = request.arguments.get("command")
         if isinstance(command, str):
-            kind = ticket_class(
-                command, job_branch=self.branch, default_branch=self.default_branch, powershell=request.provider == "codex",
+            parsed = _args(
+                command, powershell=request.provider == "codex", normalize_windows_paths=True, allow_redirects=True,
             )
+            if parsed is None:
+                return "unknown"
+            argv, redirects, shell = parsed
+            if shell and redirects:
+                cwd = _scope(request.cwd or str(self.cwd), self.cwd, (self.cwd,))
+                if cwd is None or any(_scope(target, cwd, (self.cwd,)) is None for _, target in redirects):
+                    return "unknown"
+            kind = _ticket_class(argv, redirects, self.branch, self.default_branch)
             if kind == "delete_files" and self._temp_cleanup(request, command):
                 return "checks_in_checkout"
             return kind
@@ -567,9 +635,12 @@ class Workspace:
 
     def _temp_cleanup(self, request: ApprovalRequest, command: str) -> bool:
         """Whether an rm or Remove-Item only removes paths inside the job temp dir."""
-        argv = _args(command, powershell=request.provider == "codex")
+        parsed = _args(command, powershell=request.provider == "codex")
         cwd = _scope(request.cwd or str(self.cwd), self.cwd, self.roots)
-        if self.temp is None or argv is None or cwd is None or argv[0].casefold() not in {"rm", "remove-item"}:
+        if self.temp is None or parsed is None or cwd is None:
+            return False
+        argv, _, _ = parsed
+        if argv[0].casefold() not in {"rm", "remove-item"}:
             return False
         try:
             paths = self._shell(argv, cwd, autonomy=True)
@@ -606,18 +677,25 @@ class Workspace:
             ):
                 return None
             powershell = request.provider == "codex"
-            redirects: list[tuple[str, str]] = []
-            args = _args(command, powershell=powershell, redirects=redirects if kind == "checks_in_checkout" else None)
-            if args is None:
+            parsed = _args(command, powershell=powershell, allow_redirects=kind == "checks_in_checkout")
+            if parsed is None:
                 return None
-            argv = args
+            argv, redirects, shell = parsed
+            if shell == "cmd" and "/" not in argv[0]:
+                # cmd searches the checkout for executables before PATH.
+                suffixes = os.environ.get("PATHEXT", ".com;.exe;.bat;.cmd").split(";")
+                if any(os.path.lexists(cwd / (argv[0] + suffix)) for suffix in ("", *suffixes)):
+                    return None
             if argv[0] in {"gh", "gh.exe"} and not self._github_overrides_match_origin(argv, cwd):
                 return None
             paths = self._shell(argv, cwd, autonomy=kind is not None) or ()
             if kind is not None and not paths:
                 paths = self._autonomy_paths(kind, argv, cwd) or ()
             if paths and redirects:
-                paths = (*paths, *self._redirect_targets(redirects, cwd, powershell=powershell))
+                targets = self._redirect_targets(redirects, cwd, powershell=powershell)
+                if shell and any(target is None or not target.is_relative_to(self.cwd) for target in targets):
+                    return None
+                paths = (*paths, *targets)
             if kind == "checks_in_checkout" and argv[0] in {"rm", "remove-item"} and not all(
                 path is not None and self.temp is not None and path.is_relative_to(self.temp) for path in paths
             ):
@@ -645,8 +723,8 @@ class Workspace:
     def network(self, request: ApprovalRequest, kind: str | None) -> Literal["on", "off"]:
         """Return the network state a card must carry for this request, without running anything."""
         command = request.arguments.get("command")
-        argv = _args(command, powershell=request.provider == "codex", redirects=[]) if isinstance(command, str) else None
-        return _network(kind, argv or ["bridge-edit"])
+        parsed = _args(command, powershell=request.provider == "codex", allow_redirects=True) if isinstance(command, str) else None
+        return _network(kind, parsed[0] if parsed else ["bridge-edit"])
 
     def _autonomy_paths(self, kind: str, argv: list[str], cwd: Path) -> tuple[Path, ...] | None:
         if kind in {"git_push_job_branch", "push_default_branch", "gh_pr_create", "gh_pr_merge", "network_other"}:
