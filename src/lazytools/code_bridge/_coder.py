@@ -35,9 +35,9 @@ MODES = ("supervised", "total")
 DEFAULT_PRESET = "with-production"
 TIERS: dict[str, CardTier] = {
     ACTION: "routine",
-    **dict.fromkeys(("git_local", "git_push_job_branch", "gh_pr_create", "checks_in_checkout"), "routine"),
+    **dict.fromkeys(("git_local", "git_push_job_branch", "gh_pr_create", "checks_in_checkout", "edit_in_checkout"), "routine"),
     **dict.fromkeys(_coder_actions.TICKET_COMMANDS.keys() - _coder_actions.OWNER_CLASSES
-                    - {"git_local", "git_push_job_branch", "gh_pr_create", "checks_in_checkout"}, "sensitive"),
+                    - {"git_local", "git_push_job_branch", "gh_pr_create", "checks_in_checkout", "edit_in_checkout"}, "sensitive"),
 }
 _HAND_KEY = "code-bridge:coder-hand"
 

@@ -1,5 +1,5 @@
 [solo-dev]
-supervised = ["git_local", "git_push_job_branch", "gh_pr_create", "checks_in_checkout"]
+supervised = ["git_local", "git_push_job_branch", "gh_pr_create", "checks_in_checkout", "edit_in_checkout"]
 floor = ["unknown", "payment_or_external_post"]
 
 [with-production]

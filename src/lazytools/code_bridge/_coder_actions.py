@@ -109,8 +109,9 @@ TICKET_COMMANDS: dict[str, tuple[tuple[str, ...], ...]] = {
     "payment_or_external_post": (("gh", "pr", "comment"), ("gh", "issue", "comment"), ("gh", "issue", "create")),
     # After delete_files, so rm and Remove-Item classify there unless every target is in the temp dir.
     "checks_in_checkout": (*_CHECKS, ("rm",), ("remove-item",)),
+    "edit_in_checkout": (("bridge-edit",),),
     "workspace_tools": tuple(command for command in COMMANDS if command[0] not in {"gh", "python"} and command not in {
-        ("git", "add"), ("git", "commit"), ("rm",), ("remove-item",), *_CHECKS,
+        ("git", "add"), ("git", "commit"), ("rm",), ("remove-item",), ("bridge-edit",), *_CHECKS,
     }),
     "unknown": (),
 }
@@ -171,6 +172,8 @@ def _argv_class(
     if binary in {"stripe", "paypal", "send-mailmessage"}:
         return "payment_or_external_post"
     for kind, prefixes in TICKET_COMMANDS.items():
+        if kind == "edit_in_checkout":
+            continue  # Synthetic card action, never a shell command.
         if any(words[:len(prefix)] == prefix for prefix in prefixes):
             return kind
     return "unknown"
@@ -615,6 +618,8 @@ class Workspace:
             paths.extend(request.arguments.get(key) for key in _EDIT_PATH_KEYS)
         if any(isinstance(path, str) and production_path(path) for path in paths):
             return "production_task"
+        if request.kind == "tool" and request.name in _EDIT_TOOLS:
+            return "edit_in_checkout"
         command = request.arguments.get("command")
         if isinstance(command, str):
             parsed = _args(
@@ -631,7 +636,7 @@ class Workspace:
             if kind == "delete_files" and self._temp_cleanup(request, command):
                 return "checks_in_checkout"
             return kind
-        return "workspace_tools" if request.kind == "tool" and request.name in _EDIT_TOOLS else "unknown"
+        return "unknown"
 
     def _temp_cleanup(self, request: ApprovalRequest, command: str) -> bool:
         """Whether an rm or Remove-Item only removes paths inside the job temp dir."""
