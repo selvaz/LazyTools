@@ -87,6 +87,14 @@ def test_codex_activity_refreshes_heartbeat_during_a_turn(tmp_path, repo, monkey
             now += 300
             progress["on_activity"]()
             assert _store.read_meta(store, job_id)["heartbeat_at"] == now
+            # Streamed activity within HEARTBEAT_MIN_INTERVAL does not write again (lock contention).
+            written = now
+            now += 5
+            progress["on_activity"]()
+            assert _store.read_meta(store, job_id)["heartbeat_at"] == written
+            now += _jobs.HEARTBEAT_MIN_INTERVAL
+            progress["on_activity"]()
+            assert _store.read_meta(store, job_id)["heartbeat_at"] == now
 
     async def run_agent(agent, _prompt):
         def activity():
@@ -104,7 +112,8 @@ def test_codex_activity_refreshes_heartbeat_during_a_turn(tmp_path, repo, monkey
                            root=str(tmp_path), db_path=db_path, job_id=job_id)
 
     assert result.status == "done"
-    assert engine_events == [now]
+    # The engine's own idle clock still sees every activity; only the Store write is throttled.
+    assert len(engine_events) == 3 and engine_events[-1] == now
 
 
 class ToolUseBlock(SimpleNamespace):
