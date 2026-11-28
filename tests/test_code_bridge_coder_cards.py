@@ -81,6 +81,29 @@ def test_writer_edit_in_checkout_needs_no_ticket(writer, monkeypatch):
     assert len(registry.card_audit(meta)) == 1
 
 
+@pytest.mark.xfail(strict=True, reason="supervised hand has no workspace_tools edit card")
+def test_supervised_writer_edit_in_checkout_needs_no_ticket(writer, monkeypatch):
+    repo, db, registry_db, flags = writer
+    assert cli.main(["approver-credential", "autonomy", "--mode", "supervised", *flags]) == 0
+    decisions = []
+
+    async def turn(engine, prompt, name):
+        gate = engine.kwargs["config"].approval_gate
+        edit = ApprovalRequest(
+            provider="claude-code", kind="tool", name="Write",
+            arguments={"file_path": str(repo / "new.txt"), "content": "example"}, cwd=str(repo),
+        )
+        decisions.append((await gate(edit)).action)
+        return Envelope(payload="done")
+
+    result = run(writer, monkeypatch, turn)
+    assert result.status == "done", result.error
+    registry = _registry.Registry(_store.build_store(db), registry_db)
+    meta = _store.read_meta(registry.job_store, result.job_id)
+    assert meta["registry_ticket_ids"] == []
+    assert decisions == ["allow"]
+
+
 def test_writer_edit_targets_are_confined(writer, monkeypatch):
     repo, db, registry_db, _ = writer
     outside = repo.parent / "outside"
