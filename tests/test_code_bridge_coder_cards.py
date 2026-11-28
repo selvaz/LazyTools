@@ -143,23 +143,29 @@ def test_writer_edit_targets_are_confined(writer, monkeypatch):
         inside_link.symlink_to(inside, target_is_directory=True)
 
     async def turn(engine, prompt, name):
-        gate = engine.kwargs["config"].approval_gate
-        temp = Path(gate.temp_dir)
-        allowed = [repo / "new.txt", temp / "new.txt", inside / ".." / "new.txt", inside_link / "new.txt"]
-        held = [outside / "new.txt", repo / ".." / "outside" / "new.txt",
-                link / "new.txt", link / ".." / repo.name / "new.txt", repo / ".git" / "hooks" / "pre-commit"]
-        for tool in ("Write", "Edit", "MultiEdit", "NotebookEdit"):
-            key = "notebook_path" if tool == "NotebookEdit" else "file_path"
-            for path in allowed + held:
-                edit = ApprovalRequest(provider="claude-code", kind="tool", name=tool,
-                                       arguments={key: str(path)}, cwd=str(repo))
-                assert (await gate(edit)).action == ("allow" if path in allowed else "deny"), (tool, path)
+        try:
+            gate = engine.kwargs["config"].approval_gate
+            temp = Path(gate.temp_dir)
+            allowed = [repo / "new.txt", temp / "new.txt", inside / ".." / "new.txt", inside_link / "new.txt"]
+            held = [outside / "new.txt", repo / ".." / "outside" / "new.txt",
+                    link / "new.txt", link / ".." / repo.name / "new.txt", repo / ".git" / "hooks" / "pre-commit"]
+            for tool in ("Write", "Edit", "MultiEdit", "NotebookEdit"):
+                key = "notebook_path" if tool == "NotebookEdit" else "file_path"
+                for path in allowed + held:
+                    edit = ApprovalRequest(provider="claude-code", kind="tool", name=tool,
+                                           arguments={key: str(path)}, cwd=str(repo))
+                    assert (await gate(edit)).action == ("allow" if path in allowed else "deny"), (tool, path)
+        finally:
+            # POSIX Git sees these directory symlinks as untracked files.
+            for path in (link, inside_link):
+                path.rmdir() if os.name == "nt" else path.unlink()
         return Envelope(payload="done")
 
     result = run(writer, monkeypatch, turn)
     assert result.status == "done", result.error
     registry = _registry.Registry(_store.build_store(db), registry_db)
     meta = _store.read_meta(registry.job_store, result.job_id)
+    assert not git(repo, "status", "--porcelain").strip()
     assert len(meta["registry_ticket_ids"]) == 20
     assert all(registry.inspect(ticket).request.payload["ticket_class"] == "unknown"
                for ticket in meta["registry_ticket_ids"])
