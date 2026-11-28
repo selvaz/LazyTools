@@ -105,6 +105,7 @@ def test_provider_list() -> None:
         "codemap",
         "projects",
         "fleet",
+        "dispatch",
         "knowledge",
         "pr",
     )
