@@ -1335,6 +1335,32 @@ def test_expired_running_job_is_cancelled_once() -> None:
     assert any(event.startswith("cancelled p/A") for event in events)
 
 
+@pytest.mark.parametrize("alive", [True, False])
+def test_pending_approval_holds_only_a_live_worker(monkeypatch: pytest.MonkeyPatch, alive: bool) -> None:
+    from lazytools.code_bridge import _dispatch
+
+    monkeypatch.setattr(_dispatch, "_pid_alive", lambda pid: alive and pid == 4321)
+    service, events = FakeService(), []  # type: FakeService, list[str]
+    launcher = FakeLauncher(service)
+    tickets = [{"approval_id": "ticket-1", "job_id": "job-A"}]
+    launcher.pending = lambda: tickets  # type: ignore[attr-defined]
+    cancelled: list[str] = []
+    launcher.cancel = lambda job_ref, **_: cancelled.append(job_ref) or False  # type: ignore[attr-defined]
+    dispatch = runner(service, launcher, events)
+    dispatch.clock = lambda: 2_000
+    dispatch.pass_once()
+    launcher.jobs["job-A"].update(heartbeat_at=1_000, pid=4321)
+    dispatch.pass_once()
+    dispatch.pass_once()
+    assert cancelled == ([] if alive else ["job-A", "job-A"])
+    assert [event for event in events if event == "waiting p/A awaiting approval ticket-1"] == (
+        ["waiting p/A awaiting approval ticket-1"] if alive else [])
+    if alive:
+        tickets.clear()
+        dispatch.pass_once()
+        assert cancelled == ["job-A"]
+
+
 def test_stale_heartbeat_cancels_and_retries_the_job(monkeypatch: pytest.MonkeyPatch) -> None:
     service, events = FakeService(), []  # type: FakeService, list[str]
     launcher = FakeLauncher(service)
@@ -1904,6 +1930,29 @@ def _real_retrying_dispatch(
             return dict(store.read(_board_key(PROJECT))["tasks"][0])
 
     return service, launched, crash_first_attempt, dispatcher, placement, git, board_task
+
+
+def test_approval_wait_renews_the_dispatcher_claim(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from lazytools.code_bridge import _dispatch
+
+    service, _, start, _, _, _, board_task = _real_retrying_dispatch(tmp_path, monkeypatch)
+    events: list[str] = []
+    dispatch = start(events, status="running", error=None, pid=4321, heartbeat_at=1)
+    monkeypatch.setattr(_dispatch, "_pid_alive", lambda pid: pid == 4321)
+    job_ref = board_task()["dispatches"][-1]["job_ref"]
+    monkeypatch.setattr(dispatch.launcher, "pending", lambda: [{"approval_id": "ticket-1", "job_id": job_ref}])
+    cancelled: list[str] = []
+    monkeypatch.setattr(dispatch.launcher, "cancel", lambda job_ref, **_: cancelled.append(job_ref) or False)
+    original_expiry = board_task()["dispatches"][-1]["receipt"]["lease_expires_at"]
+    now = original_expiry - 1
+    service.clock = dispatch.clock = lambda: now
+    dispatch.pass_once()
+    now = original_expiry + 1
+    dispatch.pass_once()
+    receipt = board_task()["dispatches"][-1]["receipt"]
+    assert receipt["lease_expires_at"] > now > original_expiry
+    assert board_task()["status"] == "claimed" and cancelled == []
+    assert events.count("waiting queue-test/A awaiting approval ticket-1") == 1
 
 
 @pytest.mark.parametrize(("limit", "fixed", "escalation_fixed"), [(1, True, False), (None, False, False),

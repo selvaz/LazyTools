@@ -127,6 +127,13 @@ def _tool_call_in_progress(job: dict[str, Any], now: float, bound: float) -> boo
     return all(isinstance(start, (int, float)) and now - start < bound for start in starts)
 
 
+def _awaiting_approval(job: dict[str, Any], tickets: list[dict[str, Any]]) -> bool:
+    """A pending ticket holds a running job only while its worker is alive."""
+    pid = job.get("pid")
+    return (job.get("status") == "running" and isinstance(pid, int) and _pid_alive(pid)
+            and any(ticket.get("job_id") == job.get("job_id") and ticket.get("approval_id") for ticket in tickets))
+
+
 def _has_stale_heartbeat(job: dict[str, Any], cutoff: float, *, now: float | None = None,
                          tool_bound: float = DEFAULT_TOOL_STALE_MINUTES * 60) -> bool:
     heartbeat = job.get("heartbeat_at")
@@ -227,6 +234,7 @@ class Dispatcher:
         self.unsupported: set[str] = set()
         self.waiting: dict[str, str] = {}
         self.seen_tickets: set[str] = set()
+        self.waiting_tickets: set[str] = set()
         self.cancelled: set[str] = set()
         self.max_retries = max_retries
         self.json_events = json_events
@@ -1046,7 +1054,16 @@ class Dispatcher:
         if job.get("status") not in TERMINAL:
             now = self.clock()
             cutoff = now - self.stale_seconds
-            stale = _has_stale_heartbeat(job, cutoff, now=now)
+            pending = getattr(self.launcher, "pending", None)
+            tickets = pending() if pending else []
+            awaiting = _awaiting_approval(job, tickets)
+            if awaiting:
+                for ticket in tickets:
+                    ticket_id = str(ticket.get("approval_id") or "")
+                    if ticket.get("job_id") == job.get("job_id") and ticket_id and ticket_id not in self.waiting_tickets:
+                        self.waiting_tickets.add(ticket_id)
+                        self._event("waiting", task.task_id, f"awaiting approval {ticket_id}", job_id=str(job_ref))
+            stale = not awaiting and _has_stale_heartbeat(job, cutoff, now=now)
             cancel = getattr(self.launcher, "cancel", None)
             if (not stale and not self._expired(receipt)) or cancel is None or str(job_ref) in self.cancelled:
                 return False
