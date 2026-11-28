@@ -116,7 +116,12 @@ def _command_findings(task_id: str, task: dict[str, Any], root: Path) -> list[Fi
 
 def _writable_store(path: Path, code: str, label: str) -> Finding | None:
     if not path.exists():
-        return _finding("error", code, label, f"store does not exist: {path}", "Initialize the store before dispatching.")
+        # Stores are created on first use: a missing store is fine when its folder can hold it.
+        parent = next((folder for folder in (path.parent, *path.parent.parents) if folder.exists()), None)
+        if parent is not None and parent.is_dir() and os.access(parent, os.W_OK):
+            return None
+        return _finding("error", code, label, f"store does not exist and cannot be created: {path}",
+                        "Create its folder and give the dispatcher write access.")
     if not path.is_file() or not os.access(path, os.R_OK | os.W_OK) or not os.access(path.parent, os.W_OK):
         return _finding("error", code, label, f"store is not readable and writable: {path}",
                         "Give the dispatcher read/write access to the store and its directory.")
@@ -132,7 +137,7 @@ def check_project(project: str, args: argparse.Namespace) -> list[Finding]:
     projects_path = Path(projects_raw).expanduser().resolve() if projects_raw else None
     tasks: list[Any]
     if projects_path is None:
-        findings.append(_finding("error", "projects-store-missing", "projects", "no persistent projects store is configured",
+        findings.append(_finding("warning", "projects-store-missing", "projects", "no persistent projects store is configured",
                                  "Set LAZYTOOLS_PROJECTS_STORE_DB."))
         tasks = []
     else:

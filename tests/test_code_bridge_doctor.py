@@ -128,3 +128,11 @@ def test_unreadable_quota_telemetry_is_only_a_warning(monkeypatch, tmp_path: Pat
     findings = _doctor.check_project("p", argparse.Namespace(repo_root=[]))
     telemetry = [finding for finding in findings if finding.code == "quota-telemetry-unreadable"]
     assert telemetry and all(finding.severity == "warning" for finding in telemetry)
+
+
+def test_missing_store_is_fine_when_it_can_be_created(tmp_path: Path) -> None:
+    assert _doctor._writable_store(tmp_path / "new" / "bridge.sqlite", "bridge-store-missing", "bridge") is None
+    blocker = tmp_path / "file"
+    blocker.write_text("x")
+    problem = _doctor._writable_store(blocker / "bridge.sqlite", "bridge-store-missing", "bridge")
+    assert problem is not None and problem.severity == "error"
