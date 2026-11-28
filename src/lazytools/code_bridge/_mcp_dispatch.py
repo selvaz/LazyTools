@@ -58,7 +58,11 @@ class DispatchTools:
         except FileNotFoundError:
             pass
         owner = _dispatch.live_owner(self._lock(project))
-        return {"project": project, "tasks_by_status": dict(Counter(task.status for task in tasks)),
+        grouped: dict[str, list[str]] = {}
+        for task in tasks:
+            grouped.setdefault(task.status, []).append(task.task_id)
+        return {"project": project, "tasks_by_status": grouped,
+                "task_counts": dict(Counter(task.status for task in tasks)),
                 "running_jobs": jobs, "pending_tickets": tickets, "running": owner is not None,
                 "owner": owner, "events": events, "log_path": str(self._log(project))}
 

@@ -454,7 +454,7 @@ with `--allow-unsafe`.
 
 ### `dispatch` — project dispatcher control
 
-`dispatch_status(project, last_n=50)` reports task counts by status, active project jobs,
+`dispatch_status(project, last_n=50)` reports task IDs and counts by status, active project jobs,
 their pending tickets, the live dispatcher owner and recent JSON events. `last_n` is
 bounded to 1,000. With `--allow-unsafe`, `dispatch_start(project, repo_roots=None,
 worktree_root=None, land=False)` starts a detached supervised dispatcher and returns

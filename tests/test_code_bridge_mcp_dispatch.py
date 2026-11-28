@@ -27,7 +27,8 @@ def test_status_uses_board_jobs_tickets_and_log(tmp_path: Path, monkeypatch: pyt
     tools = _mcp_dispatch.DispatchTools(projects_db=str(tmp_path / "projects.db"))
     tools._log("p").write_text('{"kind":"ready"}\n{"kind":"launched"}\n', encoding="utf-8")
     status = tools.dispatch_status("p", last_n=1)
-    assert status["tasks_by_status"] == {"todo": 1, "running": 1}
+    assert status["tasks_by_status"] == {"todo": ["p/a"], "running": ["p/b"]}
+    assert status["task_counts"] == {"todo": 1, "running": 1}
     assert [j["job_id"] for j in status["running_jobs"]] == ["one"]
     assert [t["approval_id"] for t in status["pending_tickets"]] == ["ticket"]
     assert status["events"] == [{"kind": "launched"}]
