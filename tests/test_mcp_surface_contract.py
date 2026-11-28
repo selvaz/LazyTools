@@ -58,6 +58,7 @@ EXPECTED_PROVIDER_IDS = {
     "code_write",
     "code_sessions",
     "fleet",
+    "dispatch",
     "pr",
     "code_bridge",
     "telegram",

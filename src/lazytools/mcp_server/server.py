@@ -126,6 +126,8 @@ UNSAFE_TOOL_PATTERNS: tuple[str, ...] = (
     "bridge_approve",
     "bridge_reject",
     "bridge_cancel",
+    "dispatch_start",
+    "dispatch_stop",
     # Session-name curation: changes what a name resumes (and so which
     # conversation a later call continues). ``code_sessions_list`` is a reader.
     "code_sessions_bind",

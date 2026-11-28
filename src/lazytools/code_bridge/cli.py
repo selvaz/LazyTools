@@ -285,7 +285,7 @@ def _child_argv(args: argparse.Namespace, job_id: str) -> list[str]:
     return argv
 
 
-def _spawn_detached(argv: list[str], log_path: Path) -> int:
+def _spawn_detached(argv: list[str], log_path: Path, *, env: dict[str, str] | None = None) -> int:
     """Start ``argv`` as a process that survives this one and its supervisor."""
     from lazytools.code_bridge._credentials import job_environment
 
@@ -296,7 +296,7 @@ def _spawn_detached(argv: list[str], log_path: Path) -> int:
             "stdout": log,
             "stderr": subprocess.STDOUT,
             "close_fds": True,
-            "env": job_environment(os.environ),
+            "env": job_environment(env if env is not None else os.environ),
         }
         if os.name == "nt":
             flags = _CREATE_NO_WINDOW | _CREATE_NEW_PROCESS_GROUP

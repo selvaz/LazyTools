@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -215,6 +216,7 @@ class Dispatcher:
             raise ValueError("max_retries must be nonnegative")
         self.service, self.principal, self.launcher = service, principal, launcher
         self.project_id, self.parallel, self.sleep = project_id, parallel, sleep
+        self.stop_requested: Callable[[], bool] = lambda: False
         # Flush each event: the dispatcher is usually piped into a log or a watcher.
         self.emit: Callable[[str], None] = emit or (lambda line: print(line, flush=True))
         self.task_reader = task_reader
@@ -1449,6 +1451,8 @@ class Dispatcher:
 
     def _run(self, once: bool, interval: float) -> int:
         while True:
+            if self.stop_requested():
+                raise KeyboardInterrupt
             stop = Event()
             heartbeat = Thread(target=self._keep_leases, args=(stop, interval), daemon=True)
             try:
@@ -1539,7 +1543,44 @@ def usable_reading(reading: Any, *, max_age_seconds: float = 600.0) -> bool:
     return reading.age_seconds(now=datetime.now(observed.tzinfo)) <= max_age_seconds
 
 
+def owner_lock(project: str, store_db: str | None) -> _lockfile.JobLock:
+    """The project owner lock, shared by CLI and MCP control."""
+    location = str(Path(store_db).expanduser().resolve()) if store_db else ":memory:"
+    key = hashlib.sha256(f"{location}\0{project}".encode()).hexdigest()
+    return _lockfile.JobLock(_store.locks_dir(), Path(key))
+
+
+def live_owner(lock: _lockfile.JobLock) -> dict[str, Any] | None:
+    try:
+        owner = json.loads(lock.path.read_text(encoding="utf-8"))
+        if (isinstance(owner, dict) and isinstance(owner.get("pid"), int)
+                and owner.get("host") == socket.gethostname().casefold()
+                and not _lockfile.process_has_exited(owner["pid"], owner.get("started_at"))):
+            return owner
+    except (OSError, ValueError, TypeError):
+        pass
+    return None
+
+
+def stop_path(lock: _lockfile.JobLock) -> Path:
+    return lock.path.with_suffix(".stop")
+
+
 def dispatch(args: argparse.Namespace) -> int:
+    if args.dry_run:
+        return _dispatch_main(args)
+    lock = owner_lock(args.project, _resolve_store_db(None))
+    pid = os.getpid()
+    identity = uuid4().hex
+    lock.acquire(identity, metadata={"host": socket.gethostname().casefold(),
+                                     "started_at": _lockfile.process_start_time(pid), "instance_id": identity})
+    try:
+        return _dispatch_main(args, lock=lock, identity=identity)
+    finally:
+        lock.release()
+
+
+def _dispatch_main(args: argparse.Namespace, *, lock: _lockfile.JobLock | None = None, identity: str = "") -> int:
     store_db = _resolve_store_db(None)
     principal = TaskPrincipal(actor="code-bridge-dispatch", role="orchestrator", projects=(args.project,))
     lease_minutes = getattr(args, "lease_minutes", None)
@@ -1580,6 +1621,22 @@ def dispatch(args: argparse.Namespace) -> int:
                           json_events=bool(getattr(args, "json", False)),
                           knowledge_store=knowledge_store, land=bool(getattr(args, "land", False)),
                           stale_minutes=getattr(args, "stale_minutes", DEFAULT_STALE_MINUTES))
+        if lock is not None:
+            def stop_requested() -> bool:
+                try:
+                    return stop_path(lock).read_text(encoding="utf-8") == identity
+                except OSError:
+                    return False
+
+            def interruptible_sleep(seconds: float) -> None:
+                deadline = time.monotonic() + seconds
+                while time.monotonic() < deadline:
+                    if stop_requested():
+                        raise KeyboardInterrupt
+                    time.sleep(min(0.5, max(0.0, deadline - time.monotonic())))
+
+            dispatcher.stop_requested = stop_requested
+            dispatcher.sleep = interruptible_sleep
         delay = 5.0
         while True:
             try:

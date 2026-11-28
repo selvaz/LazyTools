@@ -190,7 +190,7 @@ class JobLock:
             self._path = self.lock_dir / f"{_lock_key(self.cwd)}.lock"
         return self._path
 
-    def acquire(self, job_id: str) -> str | None:
+    def acquire(self, job_id: str, *, metadata: dict[str, Any] | None = None) -> str | None:
         """Raise :class:`LockHeld` if a live process holds this lock; else take it.
 
         Returns the job id of a STALE lock this call just reclaimed (so the
@@ -200,7 +200,7 @@ class JobLock:
         """
         self.lock_dir.mkdir(parents=True, exist_ok=True)
         payload = json.dumps(
-            {"pid": os.getpid(), "job_id": job_id, "cwd": str(self.cwd), "started_at": time.time()}
+            {"pid": os.getpid(), "job_id": job_id, "cwd": str(self.cwd), "started_at": time.time(), **(metadata or {})}
         ).encode()
         # Written COMPLETE to a private temp file first, then linked/renamed
         # into place -- never created empty at `self.path` and filled in

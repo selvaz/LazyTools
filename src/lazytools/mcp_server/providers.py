@@ -55,6 +55,7 @@ ORCHESTRATION_PROVIDERS: tuple[str, ...] = (
     "codemap",
     "projects",
     "fleet",
+    "dispatch",
     "knowledge",
     "pr",
 )
@@ -952,6 +953,13 @@ def _code_bridge(allow_write: bool = False, *, data_source: dict[str, Any] | Non
         task_principal=TaskPrincipal.model_validate(principal).model_dump_json() if principal is not None else None,
         projects_db=config.get("projects_store_db"),
     )
+
+
+@_register("dispatch")
+def _dispatch_provider(allow_write: bool = False, *, data_source: dict[str, Any] | None = None) -> Any:
+    from lazytools.code_bridge._mcp_dispatch import DispatchTools
+
+    return DispatchTools(allow_write=allow_write, projects_db=(data_source or {}).get("projects_store_db"))
 
 
 @_register("fleet")
