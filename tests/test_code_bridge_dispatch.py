@@ -282,7 +282,45 @@ def test_failure_blocks_dependent_but_independent_branch_finishes() -> None:
     dispatch.pass_once()
     assert service.rows["C"]["status"] == "done"
     assert "D" not in launcher.launches
-    assert "blocked p/D" in events
+    assert "blocked p/D dependency B failed" in events
+    assert service.rows["D"]["status"] == "failed"
+
+
+def test_failed_dependency_chain_diamond_and_retry(tmp_path: Path) -> None:
+    from lazytools.projects.plan_edit import _board_key, reopen_task
+    from test_projects_task_service import PROJECT, admit, task
+
+    path = str(tmp_path / "projects.sqlite")
+    projects = ProjectsTools(store_db=path, allow_write=True)
+    projects.projects_create(PROJECT, "Dependencies", "Finish the graph")
+    admit(projects, [task("A"), task("B", dependency_ids=["A"]),
+                     task("C", dependency_ids=["A"]), task("D", dependency_ids=["B", "C"]),
+                     task("E", dependency_ids=["D"])])
+    service = ProjectTaskService(path)
+    principal = TaskPrincipal(actor="dispatcher", role="orchestrator", projects=(PROJECT,))
+    with Store(db=path) as store:
+        board = store.read(_board_key(PROJECT))
+        board["tasks"][0].update(status="failed", error="boom")
+        board["tasks"][4].update(status="claimed", owner="worker")
+        store.write(_board_key(PROJECT), board)
+    events: list[str] = []
+    dispatch = Dispatcher(service, principal, FakeLauncher(FakeService()), PROJECT, emit=events.append)
+    dispatch.pass_once()
+    with Store(db=path) as store:
+        board = store.read(_board_key(PROJECT))
+        assert [t["status"] for t in board["tasks"]] == ["failed", "failed", "failed", "failed", "claimed"]
+        assert [t.get("failed_dependency_id") for t in board["tasks"][1:4]] == ["A"] * 3
+        assert sorted(e for e in events if e.startswith("blocked ")) == [
+            f"blocked {PROJECT}/{name} dependency A failed" for name in ("B", "C", "D")
+        ]
+        board["tasks"][4].update(status="done", owner=None)
+        store.write(_board_key(PROJECT), board)
+        assert dispatch.run() == 1
+        result = reopen_task(store, PROJECT, 0, board["tasks"][0]["text"],
+                             "Retry after fixing the original failure")
+        assert result.startswith("reopened")
+        board = store.read(_board_key(PROJECT))
+        assert [t["status"] for t in board["tasks"]] == ["todo", "todo", "todo", "todo", "done"]
 
 
 def test_restart_adopts_submitted_job_without_launching_again() -> None:
