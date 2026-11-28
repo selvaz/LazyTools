@@ -19,6 +19,7 @@ import subprocess
 import sys
 import time
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -183,6 +184,7 @@ class JobLock:
     lock_dir: Path
     cwd: Path
     _path: Path | None = None
+    owner_alive: Callable[[dict[str, Any]], bool] | None = None
 
     @property
     def path(self) -> Path:
@@ -190,7 +192,7 @@ class JobLock:
             self._path = self.lock_dir / f"{_lock_key(self.cwd)}.lock"
         return self._path
 
-    def acquire(self, job_id: str) -> str | None:
+    def acquire(self, job_id: str, *, metadata: dict[str, Any] | None = None) -> str | None:
         """Raise :class:`LockHeld` if a live process holds this lock; else take it.
 
         Returns the job id of a STALE lock this call just reclaimed (so the
@@ -200,7 +202,7 @@ class JobLock:
         """
         self.lock_dir.mkdir(parents=True, exist_ok=True)
         payload = json.dumps(
-            {"pid": os.getpid(), "job_id": job_id, "cwd": str(self.cwd), "started_at": time.time()}
+            {"pid": os.getpid(), "job_id": job_id, "cwd": str(self.cwd), "started_at": time.time(), **(metadata or {})}
         ).encode()
         # Written COMPLETE to a private temp file first, then linked/renamed
         # into place -- never created empty at `self.path` and filled in
@@ -228,7 +230,8 @@ class JobLock:
             with contextlib.suppress(OSError, ValueError):
                 existing = json.loads(self.path.read_text())
             pid = existing.get("pid")
-            if isinstance(pid, int) and _pid_alive(pid):
+            alive = self.owner_alive(existing) if self.owner_alive else isinstance(pid, int) and _pid_alive(pid)
+            if alive and isinstance(pid, int):
                 raise LockHeld(self.cwd, pid, str(existing.get("job_id", "?")))
 
             # Stale: the pid that wrote it is gone. Reclaim via an atomic

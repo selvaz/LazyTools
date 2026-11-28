@@ -115,7 +115,7 @@ Providers whose optional extra is missing are simply skipped, a bare
 
 `lazytools-orchestration-mcp` runs the same server with only the orchestration
 providers: `code_bridge`, `code_review`, `claude_review`, `code_sessions`,
-`codemap`, `projects`, `fleet`, `knowledge` and `pr`. `code_write` and the data providers are never
+`codemap`, `projects`, `fleet`, `dispatch`, `knowledge` and `pr`. `code_write` and the data providers are never
 mounted. See the [design spec](design/orchestration-mcp/SPEC.md).
 
 ```sh
@@ -162,6 +162,7 @@ subset, or set `LAZYTOOLS_MCP_PROVIDERS=datahub,statistical` in the env.
 | `code_sessions` | `CodeSessionTools(...)` | list/bind/rename/forget native aliases | explicit opt-in with `--allow-unsafe` |
 | `code_bridge` | `CodeBridgeTools(...)` | `code_bridge_submit`, `code_bridge_status`, `code_bridge_result` — local and cloud coding jobs through `lazytools-code-bridge` | `--allow-unsafe`; cloud jobs also need `allow_cloud=true` per call |
 | `fleet` | `FleetTools(...)` | `bridge_jobs`, `bridge_pending`, `bridge_route`, `bridge_autonomy`, `bridge_models`, `capabilities_search`, `bridge_events` (+ `bridge_approve`, `bridge_reject`, `bridge_cancel` with `--allow-unsafe`) | none |
+| `dispatch` | `DispatchTools(...)` | `dispatch_status` (+ `dispatch_start`, `dispatch_stop` with `--allow-unsafe`) | file-backed projects store |
 | `knowledge` | `KnowledgeTools(...)` | `lessons_search` (+ `lessons_record` with `--allow-unsafe`) — the dispatcher's lessons store | none (core) |
 | `pr` | `PrTools(...)` | `pr_watch_poll` (+ `pr_navigate`, `bridge_publish`, `bridge_apply` with `--allow-unsafe`) | `gh` CLI, authenticated |
 | `code_review` | `codex_reviewer(...)`, `codex_consultant(...)`, `codex_native_reviewer(...)` — Tools that delegate through `CodexEngine` | `codex_code_review`, `codex_ask`, `codex_review_changes` | `--allow-unsafe` + a locally authenticated `codex` CLI (opt-in only, see below) |
@@ -450,6 +451,26 @@ confined to the code root, a task may not start with `@`, and a cloud job needs
 `allow_cloud=true` on each call. Cloud results reach the repository only through the local landing step
 (`apply`, `land`, or `cloud-sync`), which keeps its own checks. Only served
 with `--allow-unsafe`.
+
+### `dispatch` — project dispatcher control
+
+`dispatch_status(project, last_n=50)` reports task IDs and counts by status, active project jobs,
+their pending tickets, the live dispatcher owner and recent JSON events. `last_n` is
+bounded to 1,000. With `--allow-unsafe`, `dispatch_start(project, repo_roots=None,
+worktree_root=None, land=False)` starts a detached supervised dispatcher and returns
+its PID and event log path after confirming ownership. If the child exits or does
+not acquire ownership within 10 seconds, the result reports failure and includes
+the new log tail. `repo_roots` maps repository slugs to checkout paths;
+`land` opts into publication. A live project owner prevents another dispatcher.
+
+`dispatch_stop(project)` requests a clean stop and waits up to 10 seconds; if it
+returns `running: true`, the request remains pending. Running jobs continue and can
+be adopted by the next dispatcher. Supervision logs unexpected exceptions and
+retries after 5 seconds, doubling to a maximum of 5 minutes. It stops on a clean
+exit or a shutdown request. Follow job and approval changes with `bridge_events`
+and decide tickets with `bridge_approve` or `bridge_reject`. These tools are never
+available on task-scoped servers. Configure the same file-backed projects store for
+the server and dispatcher with `projects_store_db` or `LAZYTOOLS_PROJECTS_STORE_DB`.
 
 ### `fleet` — read-only code-bridge views
 
