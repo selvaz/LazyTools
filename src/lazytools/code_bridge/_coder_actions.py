@@ -259,9 +259,9 @@ def _scope(value: str, cwd: Path, roots: tuple[Path, ...], *, follow_inside: boo
         return None
     try:
         if not follow_inside:
-            for part in (*reversed(target.parents), target):
+            for ancestor in (*reversed(target.parents), target):
                 try:
-                    info = part.lstat()
+                    info = ancestor.lstat()
                 except FileNotFoundError:
                     continue
                 if _linked(info):
