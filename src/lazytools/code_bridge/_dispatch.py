@@ -603,15 +603,12 @@ class Dispatcher:
                     eligibility_key = (tier, preference, fallback, tuple(busy.items()), None)
                     if eligibility_key not in picks:
                         picks[eligibility_key] = self.router(tier, busy, preference, fallback, None)
-                    eligibility = picks[eligibility_key]
-                    excluded = {
-                        _routing.provider(name.rsplit(":", 1)[-1])
-                        for name in eligibility.ineligible
-                    }
-                    if required_engine in excluded:
-                        # A resumable conversation is useful only while its engine remains
-                        # eligible under the exact policy used for a new attempt.  Dropping
-                        # the pin also makes _launch_input carry the failure into a fresh brief.
+                    fresh = picks[eligibility_key]
+                    if fresh.provider != required_engine:
+                        # A retry routes like a new attempt: it resumes its conversation only when
+                        # a new attempt would pick the same engine under the same policy (budget,
+                        # pace, preference, fallback). Otherwise the pin is dropped and
+                        # _launch_input carries the failure into a fresh brief.
                         rerouted_pinned_engine = required_engine
                         required_engine = None
                 key = (tier, preference, fallback, tuple(busy.items()), required_engine)
