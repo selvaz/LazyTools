@@ -632,7 +632,7 @@ class Workspace:
         if any(isinstance(path, str) and production_path(path) for path in paths):
             return "production_task"
         if request.kind == "tool" and request.name in _EDIT_TOOLS:
-            return "edit_in_checkout"
+            return "edit_in_checkout" if self.action(request, ticket_kind="edit_in_checkout") else "unknown"
         command = request.arguments.get("command")
         if isinstance(command, str):
             parsed = _args(

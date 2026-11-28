@@ -161,6 +161,8 @@ def test_writer_edit_targets_are_confined(writer, monkeypatch):
     registry = _registry.Registry(_store.build_store(db), registry_db)
     meta = _store.read_meta(registry.job_store, result.job_id)
     assert len(meta["registry_ticket_ids"]) == 20
+    assert all(registry.inspect(ticket).request.payload["ticket_class"] == "unknown"
+               for ticket in meta["registry_ticket_ids"])
     assert len(registry.card_audit(meta)) == 16
 
 
