@@ -295,7 +295,8 @@ def test_failure_blocks_dependent_but_independent_branch_finishes() -> None:
     assert service.rows["D"]["status"] == "failed"
 
 
-def test_failed_dependency_chain_diamond_and_retry(tmp_path: Path) -> None:
+@pytest.mark.parametrize("root_status", ["failed", "cancelled"])
+def test_failed_dependency_chain_diamond_and_retry(tmp_path: Path, root_status: str) -> None:
     from lazytools.projects.plan_edit import _board_key, reopen_task
     from test_projects_task_service import PROJECT, admit, task
 
@@ -309,15 +310,16 @@ def test_failed_dependency_chain_diamond_and_retry(tmp_path: Path) -> None:
     principal = TaskPrincipal(actor="dispatcher", role="orchestrator", projects=(PROJECT,))
     with Store(db=path) as store:
         board = store.read(_board_key(PROJECT))
-        board["tasks"][0].update(status="failed", error="boom")
+        board["tasks"][0].update(status=root_status, error="boom")
         board["tasks"][4].update(status="claimed", owner="worker")
         store.write(_board_key(PROJECT), board)
     events: list[str] = []
     dispatch = Dispatcher(service, principal, FakeLauncher(FakeService()), PROJECT, emit=events.append)
     dispatch.pass_once()
+    dispatch.pass_once()
     with Store(db=path) as store:
         board = store.read(_board_key(PROJECT))
-        assert [t["status"] for t in board["tasks"]] == ["failed", "failed", "failed", "failed", "claimed"]
+        assert [t["status"] for t in board["tasks"]] == [root_status, "failed", "failed", "failed", "claimed"]
         assert [t.get("failed_dependency_id") for t in board["tasks"][1:4]] == ["A"] * 3
         assert sorted(e for e in events if e.startswith("blocked ")) == [
             f"blocked {PROJECT}/{name} dependency A failed" for name in ("B", "C", "D")
