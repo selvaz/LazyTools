@@ -67,6 +67,8 @@ class DispatchTools:
         """Start a detached supervised dispatcher for the project."""
         if not self.allow_write:
             raise PermissionError("dispatch_start requires --allow-unsafe")
+        if not self.projects_db:
+            raise ValueError("dispatch_start requires a file-backed projects store")
         project = self._project(project)
         if owner := _dispatch.live_owner(self._lock(project)):
             return {"ok": False, "error": "dispatcher already running", "owner": owner}
