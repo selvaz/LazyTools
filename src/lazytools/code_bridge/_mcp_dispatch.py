@@ -1,4 +1,4 @@
-﻿"""Project dispatcher control for the orchestration MCP server."""
+"""Project dispatcher control for the orchestration MCP server."""
 from __future__ import annotations
 
 import json
