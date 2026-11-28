@@ -707,6 +707,8 @@ class BridgeGate(TieredGate):
             return None
         if name in {"WebSearch", "WebFetch"} and "web" in policy.tools:
             return None
+        if name in _EDIT_TOOLS and policy.profile == "read":
+            return Rule("ask", name)
         if name in _EDIT_TOOLS and "edit" in policy.tool_classes:
             if self.writer:
                 return None

@@ -109,8 +109,9 @@ TICKET_COMMANDS: dict[str, tuple[tuple[str, ...], ...]] = {
     "payment_or_external_post": (("gh", "pr", "comment"), ("gh", "issue", "comment"), ("gh", "issue", "create")),
     # After delete_files, so rm and Remove-Item classify there unless every target is in the temp dir.
     "checks_in_checkout": (*_CHECKS, ("rm",), ("remove-item",)),
+    "edit_in_checkout": (("bridge-edit",),),
     "workspace_tools": tuple(command for command in COMMANDS if command[0] not in {"gh", "python"} and command not in {
-        ("git", "add"), ("git", "commit"), ("rm",), ("remove-item",), *_CHECKS,
+        ("git", "add"), ("git", "commit"), ("rm",), ("remove-item",), ("bridge-edit",), *_CHECKS,
     }),
     "unknown": (),
 }
@@ -171,6 +172,8 @@ def _argv_class(
     if binary in {"stripe", "paypal", "send-mailmessage"}:
         return "payment_or_external_post"
     for kind, prefixes in TICKET_COMMANDS.items():
+        if kind == "edit_in_checkout":
+            continue  # Synthetic card action, never a shell command.
         if any(words[:len(prefix)] == prefix for prefix in prefixes):
             return kind
     return "unknown"
@@ -223,7 +226,7 @@ def _linked(info: os.stat_result) -> bool:
     return stat.S_ISLNK(info.st_mode) or bool(getattr(info, "st_file_attributes", 0) & 0x400)
 
 
-def _scope(value: str, cwd: Path, roots: tuple[Path, ...]) -> Path | None:
+def _scope(value: str, cwd: Path, roots: tuple[Path, ...], *, follow_inside: bool = False) -> Path | None:
     """Check the literal path and each ancestor before following filesystem aliases."""
     if not value or any(c in value for c in "\x00*?[]{}~") or ("\\" in value and os.name != "nt"):
         return None
@@ -231,11 +234,23 @@ def _scope(value: str, cwd: Path, roots: tuple[Path, ...]) -> Path | None:
     if path.anchor and (not path.is_absolute() or path.anchor.startswith(("//", "\\\\"))):
         return None
     parts = path.parts[1:] if path.anchor else path.parts
-    if any(p == ".." or ":" in p or p.endswith((".", " ")) or _DEVICE.fullmatch(p) for p in parts):
+    if any((p == ".." and not follow_inside) or ":" in p
+           or (p != ".." and (p.endswith((".", " ")) or _DEVICE.fullmatch(p))) for p in parts):
         return None
     target = cwd / path
     if not any(target.is_relative_to(root) for root in roots):
         return None
+    if follow_inside:
+        root = next(root for root in roots if target.is_relative_to(root))
+        current = root
+        try:
+            for part in target.relative_to(root).parts:
+                current = (current.parent if part == ".." else current / part).resolve()
+                if not current.is_relative_to(root):
+                    return None
+        except (OSError, RuntimeError):
+            return None
+        target = current
     if os.name == "nt" and any(
         target.is_relative_to(Path(root))
         for root in (os.environ.get("PROGRAMDATA", "C:/ProgramData"), os.environ.get("SYSTEMROOT", "C:/Windows"))
@@ -243,13 +258,14 @@ def _scope(value: str, cwd: Path, roots: tuple[Path, ...]) -> Path | None:
     ):
         return None
     try:
-        for part in (*reversed(target.parents), target):
-            try:
-                info = part.lstat()
-            except FileNotFoundError:
-                continue
-            if _linked(info):
-                return None
+        if not follow_inside:
+            for ancestor in (*reversed(target.parents), target):
+                try:
+                    info = ancestor.lstat()
+                except FileNotFoundError:
+                    continue
+                if _linked(info):
+                    return None
         if target.resolve() != target:
             return None
     except (OSError, RuntimeError):
@@ -421,8 +437,8 @@ class Workspace:
     def roots(self) -> tuple[Path, ...]:
         return (self.cwd,) if self.temp is None else (self.cwd, self.temp)
 
-    def _write(self, raw: str, cwd: Path) -> Path | None:
-        target = _scope(raw, cwd, self.roots)
+    def _write(self, raw: str, cwd: Path, *, follow_inside: bool = False) -> Path | None:
+        target = _scope(raw, cwd, self.roots, follow_inside=follow_inside)
         if target is None or target in self.roots:
             return None
         root = next(root for root in self.roots if target.is_relative_to(root))
@@ -615,6 +631,13 @@ class Workspace:
             paths.extend(request.arguments.get(key) for key in _EDIT_PATH_KEYS)
         if any(isinstance(path, str) and production_path(path) for path in paths):
             return "production_task"
+        if request.kind == "tool" and request.name in _EDIT_TOOLS:
+            # Classify what the write really reaches: an in-checkout link to a production folder is a
+            # production write, exactly like naming that folder directly.
+            targets = self._edit_targets(request) or ()
+            if any(target is not None and production_path(str(target)) for target in targets):
+                return "production_task"
+            return "edit_in_checkout" if self.action(request, ticket_kind="edit_in_checkout") else "unknown"
         command = request.arguments.get("command")
         if isinstance(command, str):
             parsed = _args(
@@ -631,7 +654,7 @@ class Workspace:
             if kind == "delete_files" and self._temp_cleanup(request, command):
                 return "checks_in_checkout"
             return kind
-        return "workspace_tools" if request.kind == "tool" and request.name in _EDIT_TOOLS else "unknown"
+        return "unknown"
 
     def _temp_cleanup(self, request: ApprovalRequest, command: str) -> bool:
         """Whether an rm or Remove-Item only removes paths inside the job temp dir."""
@@ -649,6 +672,20 @@ class Workspace:
         temp = self.temp
         return bool(paths) and all(path is not None and path.is_relative_to(temp) for path in paths or ())
 
+    def _edit_targets(self, request: ApprovalRequest, cwd: Path | None = None) -> tuple[Path | None, ...] | None:
+        """Resolved targets of a file edit request (None for a target outside the roots)."""
+        try:
+            if cwd is None:
+                cwd = _scope(request.cwd or str(self.cwd), self.cwd, self.roots)
+            if cwd is None or not cwd.is_dir():
+                return None
+            return tuple(
+                self._write(value, cwd, follow_inside=True) if isinstance(value, str) else None
+                for key, value in request.arguments.items() if key in _EDIT_PATH_KEYS
+            )
+        except (OSError, RuntimeError, UnicodeError):
+            return None
+
     def action(self, request: ApprovalRequest, *, ticket_kind: str | None = None) -> tuple[Path, CardAction] | None:
         try:
             return self._action(request, ticket_kind)
@@ -661,10 +698,7 @@ class Workspace:
             return None
         if request.kind == "tool" and request.name in _EDIT_TOOLS:
             argv = ["bridge-edit", request.name]
-            paths = tuple(
-                self._write(value, cwd) if isinstance(value, str) else None
-                for key, value in request.arguments.items() if key in _EDIT_PATH_KEYS
-            )
+            paths = self._edit_targets(request, cwd) or ()
         else:
             command = request.arguments.get("command")
             if (

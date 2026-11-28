@@ -76,7 +76,7 @@ def test_owner_can_select_autonomy_preset(tmp_path, provision_bridge_approver, c
 def test_packaged_autonomy_presets(preset, floor):
     assert _coder.delegated_classes("supervised", preset) == {
         "git_local", "git_push_job_branch", "gh_pr_create", "checks_in_checkout",
-    }
+    } | ({"edit_in_checkout"} if preset == "solo-dev" else set())
     assert _coder.delegated_classes("total", preset) == _coder_actions.TICKET_COMMANDS.keys() - floor
 
 
