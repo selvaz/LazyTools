@@ -436,6 +436,14 @@ class ProjectTaskService:
         """Atomically settle unstarted tasks whose dependency has failed."""
         principal.require_role("orchestrator", "owner")
         principal.require_project(project)
+        # The dispatcher calls this every loop: look first in a read transaction, so the common case
+        # (nothing to block) never takes the write lock; the write transaction then decides again.
+        with transaction(self.path) as store:
+            board = store.read(_board_key(project))
+        if board is None:
+            raise TaskServiceError("not_found", "Project board not found")
+        if not block_failed_dependencies(board["tasks"], self.clock()):
+            return []
         with transaction(self.path, write=True) as store:
             board = store.read(_board_key(project))
             if board is None:
