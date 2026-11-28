@@ -41,6 +41,7 @@ from lazytools.code_bridge import (
     _credentials,
     _dispatch,
     _dispatch_launch,
+    _doctor,
     _engines,
     _events,
     _freshness,
@@ -2216,6 +2217,18 @@ def _add_routing_options(parser: argparse.ArgumentParser, *, required: bool = Fa
     )
 
 
+def _cmd_doctor(args: argparse.Namespace) -> int:
+    findings = _doctor.check_project(args.project, args)
+    if args.json:
+        _print_json({"project": args.project, "findings": [finding.as_dict() for finding in findings]})
+    else:
+        for finding in findings:
+            print(f"{finding.severity}: {finding.code} [{finding.subject}]: {finding.message}\n  fix: {finding.fix}")
+        print(f"doctor: {sum(item.severity == 'error' for item in findings)} error(s), "
+              f"{sum(item.severity == 'warning' for item in findings)} warning(s)")
+    return 1 if any(item.severity == "error" for item in findings) else 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="lazytools-code-bridge",
@@ -2226,12 +2239,23 @@ def build_parser() -> argparse.ArgumentParser:
 
     add_navigate_parser(sub)
 
+    doctor_p = sub.add_parser("doctor", help="Check everything a project's tasks need before dispatching.")
+    doctor_p.add_argument("--project", required=True, help="Projects board identifier.")
+    doctor_p.add_argument("--repo-root", action="append", default=[], metavar="SLUG=PATH")
+    doctor_p.add_argument("--land", action="store_true", help="Also require authenticated GitHub CLI landing.")
+    doctor_p.add_argument("--json", action="store_true")
+    _add_registry_option(doctor_p)
+    doctor_p.add_argument("--knowledge-db", type=Path, metavar="PATH")
+    doctor_p.set_defaults(func=_cmd_doctor)
+
     dispatch_p = sub.add_parser("dispatch", help="Dispatch every ready task in a project.")
     dispatch_p.add_argument("--project", required=True, help="Projects board identifier.")
     dispatch_p.add_argument("--parallel", type=int, metavar="N",
                             help="Optional cap on active tasks, in addition to local and cloud slot limits.")
     dispatch_p.add_argument("--once", action="store_true")
     dispatch_p.add_argument("--dry-run", action="store_true")
+    dispatch_p.add_argument("--skip-doctor", action="store_true",
+                            help="Emergency override: dispatch without preflight (emits a warning event).")
     dispatch_p.add_argument("--repo-root", action="append", default=[], metavar="SLUG=PATH",
                             help="Map a task repository slug to its local checkout (repeatable).")
     dispatch_p.add_argument("--worktree-root", default=None, metavar="PATH",

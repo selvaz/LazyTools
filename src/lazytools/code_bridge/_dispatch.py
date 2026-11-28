@@ -13,7 +13,7 @@ from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
 from threading import Event, Thread, current_thread, main_thread
-from typing import Any, Literal, TypeVar
+from typing import Any, Literal, TypeVar, cast
 from uuid import uuid4
 
 from lazybridge import Store
@@ -1379,8 +1379,9 @@ class Dispatcher:
                 engine = expected.engine_family if expected else None
                 if cloud and not self._cloud_available(task_id, engine or ""):
                     continue
-                if not cloud and engine in busy:
-                    self._wait(task_id, f"local slot: {busy[engine]}", key=f"local slot: {engine}")
+                busy_reason = busy.get(cast(Engine, engine)) if engine in ENGINES else None
+                if not cloud and busy_reason is not None:
+                    self._wait(task_id, f"local slot: {busy_reason}", key=f"local slot: {engine}")
                     continue
             self._event("ready", task_id)
             attempt = len(data.get("dispatches", [])) + 1
@@ -1564,6 +1565,25 @@ def usable_reading(reading: Any, *, max_age_seconds: float = 600.0) -> bool:
 
 
 def dispatch(args: argparse.Namespace) -> int:
+    if getattr(args, "skip_doctor", False):
+        if getattr(args, "json", False):
+            print(json.dumps({"kind": "doctor-warning", "job_id": None, "task_id": args.project,
+                              "detail": "pre-dispatch doctor skipped by operator"}), flush=True)
+        else:
+            print(f"doctor-warning {args.project} pre-dispatch doctor skipped by operator", flush=True)
+    else:
+        # Deferred to avoid _doctor -> _dispatch.Task import initialization cycles.
+        from lazytools.code_bridge._doctor import check_project
+        findings = check_project(args.project, args)
+        for finding in findings:
+            detail = f"{finding.severity} {finding.code}: {finding.message}; fix: {finding.fix}"
+            if getattr(args, "json", False):
+                print(json.dumps({"kind": "doctor", "job_id": None, "task_id": finding.subject,
+                                  "detail": detail}), flush=True)
+            else:
+                print(f"doctor {finding.subject} {detail}", flush=True)
+        if any(finding.severity == "error" for finding in findings):
+            return 2
     store_db = _resolve_store_db(None)
     principal = TaskPrincipal(actor="code-bridge-dispatch", role="orchestrator", projects=(args.project,))
     lease_minutes = getattr(args, "lease_minutes", None)
