@@ -196,7 +196,7 @@ def _policy(folder: Path, cards: tuple[ApprovalCard, ...]) -> EffectivePolicy:
     # checked by BridgeGate before any request reaches this adapter.
     network = "on" if any(card.matcher.network == "on" for card in cards) else "off"
     return resolve("edit-and-run", TaskGrant(
-        folder, {"tool_classes": ["shell"]}, network, "local", approval_cards=cards,
+        folder, {"tool_classes": ["shell", "edit"]}, network, "local", approval_cards=cards,
     ))
 
 

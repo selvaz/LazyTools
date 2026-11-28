@@ -51,12 +51,12 @@ def writer(tmp_path, monkeypatch, provision_bridge_approver):
     return repo, db, registry_db, flags
 
 
-def run(writer, monkeypatch, turn, *, engine="claude", network=None):
+def run(writer, monkeypatch, turn, *, engine="claude", network=None, profile="default"):
     repo, db, registry_db, _ = writer
     monkeypatch.setattr(_jobs, "_run_agent", turn)
     return _jobs.run_job(
         engine_name=engine, cwd=str(repo), root=str(repo.parent), task="Exercise the coder hand",
-        db_path=db, registry_db=registry_db, timeout=30, network=network,
+        db_path=db, registry_db=registry_db, timeout=30, network=network, profile=profile,
     )
 
 
@@ -79,6 +79,57 @@ def test_writer_edit_in_checkout_needs_no_ticket(writer, monkeypatch):
     meta = _store.read_meta(registry.job_store, result.job_id)
     assert meta["registry_ticket_ids"] == []
     assert len(registry.card_audit(meta)) == 1
+
+
+def test_writer_edit_targets_are_confined(writer, monkeypatch):
+    repo, db, registry_db, _ = writer
+    outside = repo.parent / "outside"
+    outside.mkdir()
+    link = repo / "outside-link"
+    if os.name == "nt":
+        subprocess.run(["cmd", "/c", "mklink", "/J", str(link), str(outside)], check=True, capture_output=True)
+    else:
+        link.symlink_to(outside, target_is_directory=True)
+
+    async def turn(engine, prompt, name):
+        gate = engine.kwargs["config"].approval_gate
+        temp = Path(gate.temp_dir)
+        allowed = [repo / "new.txt", temp / "new.txt"]
+        held = [outside / "new.txt", repo / ".." / "outside" / "new.txt",
+                link / "new.txt", repo / ".git" / "hooks" / "pre-commit"]
+        for tool in ("Write", "Edit", "MultiEdit", "NotebookEdit"):
+            key = "notebook_path" if tool == "NotebookEdit" else "file_path"
+            for path in allowed + held:
+                edit = ApprovalRequest(provider="claude-code", kind="tool", name=tool,
+                                       arguments={key: str(path)}, cwd=str(repo))
+                assert (await gate(edit)).action == ("allow" if path in allowed else "deny"), (tool, path)
+        return Envelope(payload="done")
+
+    result = run(writer, monkeypatch, turn)
+    assert result.status == "done", result.error
+    registry = _registry.Registry(_store.build_store(db), registry_db)
+    meta = _store.read_meta(registry.job_store, result.job_id)
+    assert len(meta["registry_ticket_ids"]) == 16
+    assert len(registry.card_audit(meta)) == 8
+
+
+def test_review_edits_require_tickets(writer, monkeypatch):
+    repo, db, registry_db, _ = writer
+
+    async def turn(engine, prompt, name, **kwargs):
+        gate = engine.kwargs["config"].approval_gate
+        for tool in ("Write", "Edit", "MultiEdit", "NotebookEdit"):
+            key = "notebook_path" if tool == "NotebookEdit" else "file_path"
+            edit = ApprovalRequest(provider="claude-code", kind="tool", name=tool,
+                                   arguments={key: str(repo / "new.txt")}, cwd=str(repo))
+            assert (await gate(edit)).action == "deny"
+        return Envelope(payload="done")
+
+    result = run(writer, monkeypatch, turn, profile="review")
+    assert result.status == "done", result.error
+    registry = _registry.Registry(_store.build_store(db), registry_db)
+    meta = _store.read_meta(registry.job_store, result.job_id)
+    assert len(meta["registry_ticket_ids"]) == 4
 
 
 def test_standard_system_lfs_filters_allow_local_git_on_posix(tmp_path, monkeypatch):
