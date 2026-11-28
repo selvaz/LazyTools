@@ -60,6 +60,27 @@ def run(writer, monkeypatch, turn, *, engine="claude", network=None):
     )
 
 
+def test_writer_edit_in_checkout_needs_no_ticket(writer, monkeypatch):
+    repo, db, registry_db, _ = writer
+
+    async def turn(engine, prompt, name):
+        gate = engine.kwargs["config"].approval_gate
+        edit = ApprovalRequest(
+            provider="claude-code", kind="tool", name="Write",
+            arguments={"file_path": str(repo / "new.txt"), "content": "example"}, cwd=str(repo),
+        )
+        assert (await gate(edit)).action == "allow"
+        assert "edit" in gate.channel.hand.policies[repo].tool_classes
+        return Envelope(payload="done")
+
+    result = run(writer, monkeypatch, turn)
+    assert result.status == "done", result.error
+    registry = _registry.Registry(_store.build_store(db), registry_db)
+    meta = _store.read_meta(registry.job_store, result.job_id)
+    assert meta["registry_ticket_ids"] == []
+    assert len(registry.card_audit(meta)) == 1
+
+
 def test_standard_system_lfs_filters_allow_local_git_on_posix(tmp_path, monkeypatch):
     repo = tmp_path / "repo"
     repo.mkdir()
