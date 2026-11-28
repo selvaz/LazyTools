@@ -226,7 +226,7 @@ def _linked(info: os.stat_result) -> bool:
     return stat.S_ISLNK(info.st_mode) or bool(getattr(info, "st_file_attributes", 0) & 0x400)
 
 
-def _scope(value: str, cwd: Path, roots: tuple[Path, ...]) -> Path | None:
+def _scope(value: str, cwd: Path, roots: tuple[Path, ...], *, follow_inside: bool = False) -> Path | None:
     """Check the literal path and each ancestor before following filesystem aliases."""
     if not value or any(c in value for c in "\x00*?[]{}~") or ("\\" in value and os.name != "nt"):
         return None
@@ -234,11 +234,23 @@ def _scope(value: str, cwd: Path, roots: tuple[Path, ...]) -> Path | None:
     if path.anchor and (not path.is_absolute() or path.anchor.startswith(("//", "\\\\"))):
         return None
     parts = path.parts[1:] if path.anchor else path.parts
-    if any(p == ".." or ":" in p or p.endswith((".", " ")) or _DEVICE.fullmatch(p) for p in parts):
+    if any((p == ".." and not follow_inside) or ":" in p
+           or (p != ".." and (p.endswith((".", " ")) or _DEVICE.fullmatch(p))) for p in parts):
         return None
     target = cwd / path
     if not any(target.is_relative_to(root) for root in roots):
         return None
+    if follow_inside:
+        root = next(root for root in roots if target.is_relative_to(root))
+        current = root
+        try:
+            for part in target.relative_to(root).parts:
+                current = (current.parent if part == ".." else current / part).resolve()
+                if not current.is_relative_to(root):
+                    return None
+        except (OSError, RuntimeError):
+            return None
+        target = current
     if os.name == "nt" and any(
         target.is_relative_to(Path(root))
         for root in (os.environ.get("PROGRAMDATA", "C:/ProgramData"), os.environ.get("SYSTEMROOT", "C:/Windows"))
@@ -246,13 +258,14 @@ def _scope(value: str, cwd: Path, roots: tuple[Path, ...]) -> Path | None:
     ):
         return None
     try:
-        for part in (*reversed(target.parents), target):
-            try:
-                info = part.lstat()
-            except FileNotFoundError:
-                continue
-            if _linked(info):
-                return None
+        if not follow_inside:
+            for part in (*reversed(target.parents), target):
+                try:
+                    info = part.lstat()
+                except FileNotFoundError:
+                    continue
+                if _linked(info):
+                    return None
         if target.resolve() != target:
             return None
     except (OSError, RuntimeError):
@@ -424,8 +437,8 @@ class Workspace:
     def roots(self) -> tuple[Path, ...]:
         return (self.cwd,) if self.temp is None else (self.cwd, self.temp)
 
-    def _write(self, raw: str, cwd: Path) -> Path | None:
-        target = _scope(raw, cwd, self.roots)
+    def _write(self, raw: str, cwd: Path, *, follow_inside: bool = False) -> Path | None:
+        target = _scope(raw, cwd, self.roots, follow_inside=follow_inside)
         if target is None or target in self.roots:
             return None
         root = next(root for root in self.roots if target.is_relative_to(root))
@@ -667,7 +680,7 @@ class Workspace:
         if request.kind == "tool" and request.name in _EDIT_TOOLS:
             argv = ["bridge-edit", request.name]
             paths = tuple(
-                self._write(value, cwd) if isinstance(value, str) else None
+                self._write(value, cwd, follow_inside=True) if isinstance(value, str) else None
                 for key, value in request.arguments.items() if key in _EDIT_PATH_KEYS
             )
         else:

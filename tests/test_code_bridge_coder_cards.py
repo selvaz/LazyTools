@@ -103,22 +103,51 @@ def test_supervised_writer_edit_in_checkout_needs_no_ticket(writer, monkeypatch)
     assert decisions == ["allow"]
 
 
+def test_owner_revokes_supervised_edit_card(writer, monkeypatch):
+    repo, db, registry_db, flags = writer
+    assert cli.main(["approver-credential", "autonomy", "--mode", "supervised", "--preset", "solo-dev", *flags]) == 0
+
+    async def turn(engine, prompt, name):
+        gate = engine.kwargs["config"].approval_gate
+        edit = ApprovalRequest(provider="claude-code", kind="tool", name="Write",
+                               arguments={"file_path": str(repo / "new.txt")}, cwd=str(repo))
+        assert (await gate(edit)).action == "allow"
+        assert (await gate(request(repo, "bridge-edit Write"))).action == "deny"
+        card = next(card for card in gate.channel.hand.selection.cards if card.action_class == "edit_in_checkout")
+        assert gate.channel.registry.queue.revoke_card(card.card_id, credential=_credentials.load(registry_db))
+        assert (await gate(edit)).action == "deny"
+        return Envelope(payload="done")
+
+    result = run(writer, monkeypatch, turn)
+    assert result.status == "done", result.error
+    registry = _registry.Registry(_store.build_store(db), registry_db)
+    meta = _store.read_meta(registry.job_store, result.job_id)
+    assert len(meta["registry_ticket_ids"]) == 2
+    assert len(registry.card_audit(meta)) == 1
+
+
 def test_writer_edit_targets_are_confined(writer, monkeypatch):
-    repo, db, registry_db, _ = writer
+    repo, db, registry_db, flags = writer
+    assert cli.main(["approver-credential", "autonomy", "--mode", "supervised", "--preset", "solo-dev", *flags]) == 0
     outside = repo.parent / "outside"
     outside.mkdir()
+    inside = repo / "inside"
+    inside.mkdir()
     link = repo / "outside-link"
+    inside_link = repo / "inside-link"
     if os.name == "nt":
         subprocess.run(["cmd", "/c", "mklink", "/J", str(link), str(outside)], check=True, capture_output=True)
+        subprocess.run(["cmd", "/c", "mklink", "/J", str(inside_link), str(inside)], check=True, capture_output=True)
     else:
         link.symlink_to(outside, target_is_directory=True)
+        inside_link.symlink_to(inside, target_is_directory=True)
 
     async def turn(engine, prompt, name):
         gate = engine.kwargs["config"].approval_gate
         temp = Path(gate.temp_dir)
-        allowed = [repo / "new.txt", temp / "new.txt"]
+        allowed = [repo / "new.txt", temp / "new.txt", inside / ".." / "new.txt", inside_link / "new.txt"]
         held = [outside / "new.txt", repo / ".." / "outside" / "new.txt",
-                link / "new.txt", repo / ".git" / "hooks" / "pre-commit"]
+                link / "new.txt", link / ".." / repo.name / "new.txt", repo / ".git" / "hooks" / "pre-commit"]
         for tool in ("Write", "Edit", "MultiEdit", "NotebookEdit"):
             key = "notebook_path" if tool == "NotebookEdit" else "file_path"
             for path in allowed + held:
@@ -131,8 +160,8 @@ def test_writer_edit_targets_are_confined(writer, monkeypatch):
     assert result.status == "done", result.error
     registry = _registry.Registry(_store.build_store(db), registry_db)
     meta = _store.read_meta(registry.job_store, result.job_id)
-    assert len(meta["registry_ticket_ids"]) == 16
-    assert len(registry.card_audit(meta)) == 8
+    assert len(meta["registry_ticket_ids"]) == 20
+    assert len(registry.card_audit(meta)) == 16
 
 
 def test_review_edits_require_tickets(writer, monkeypatch):
