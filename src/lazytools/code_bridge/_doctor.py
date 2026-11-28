@@ -248,7 +248,11 @@ def check_project(project: str, args: argparse.Namespace) -> list[Finding]:
         findings.append(_finding("error", "quota-telemetry-unreadable", "routing", detail,
                                  "Authenticate at least one engine and refresh its quota telemetry."))
     if getattr(args, "land", False):
-        auth = subprocess.run(["gh", "auth", "status"], text=True, capture_output=True, check=False) if shutil.which("gh") else None
+        gh = shutil.which("gh")
+        try:
+            auth = subprocess.run([gh, "auth", "status"], text=True, capture_output=True, check=False) if gh else None
+        except OSError:
+            auth = None
         if auth is None or auth.returncode:
             findings.append(_finding("error", "gh-auth-missing", "landing", "GitHub CLI is not authenticated",
                                      "Install gh and run `gh auth login`, or provide GH_TOKEN."))

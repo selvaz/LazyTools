@@ -69,11 +69,25 @@ def test_missing_projects_store(monkeypatch, tmp_path: Path) -> None:
 def test_gh_auth_is_checked_only_for_land(monkeypatch, tmp_path: Path) -> None:
     task = Task("p/t", "1", "done", {}, None)
     _fake_project(monkeypatch, tmp_path, task)
-    monkeypatch.setattr(_doctor.shutil, "which", lambda name: "/bin/false" if name == "gh" else None)
+    monkeypatch.setattr(_doctor.shutil, "which", lambda name: "fake-gh" if name == "gh" else None)
+    monkeypatch.setattr(_doctor._cloud, "repo_root", lambda path: path)
+    monkeypatch.setattr(_doctor._cloud, "repo_slug", lambda _path: "owner/repo")
+    calls: list[list[str]] = []
+    def run(command, **_kwargs):
+        calls.append(command)
+        return subprocess.CompletedProcess(command, 1)
+    monkeypatch.setattr(_doctor.subprocess, "run", run)
     without = {item.code for item in _doctor.check_project("p", _args(tmp_path))}
+    assert calls == []
     with_land = {item.code for item in _doctor.check_project("p", _args(tmp_path, land=True))}
     assert "gh-auth-missing" not in without
     assert "gh-auth-missing" in with_land
+    assert calls == [["fake-gh", "auth", "status"]]
+
+    def unavailable(_command, **_kwargs):
+        raise OSError("cannot launch gh")
+    monkeypatch.setattr(_doctor.subprocess, "run", unavailable)
+    assert "gh-auth-missing" in {item.code for item in _doctor.check_project("p", _args(tmp_path, land=True))}
 
 
 def test_missing_approver_credential(monkeypatch, tmp_path: Path) -> None:
