@@ -676,8 +676,73 @@ def test_retry_with_native_resume_keeps_engine(escalation_tier: str | None) -> N
                                                                  "escalation_tier": escalation_tier}},
                  {"receipt": {"engine_family": "codex"}})
     dispatch._place(retry, dispatch._requested(retry), {}, {})
-    assert required == ["codex"]
+    assert required == [None, "codex"]
     assert events[0].startswith("placed p/A local codex ")
+
+
+def test_pinned_repair_over_budget_routes_fresh_with_failure_evidence() -> None:
+    recorded: list[Any] = []
+    events: list[str] = []
+
+    class PlacingService:
+        lease_seconds = 900
+
+        def record_placement(self, task_id: str, revision: str, evidence: Any) -> None:
+            recorded.append(evidence)
+
+    def route(tier: str, busy: Any, preference: Any, fallback: Any, engine: Any) -> RoutingDecision:
+        assert engine is None  # The ineligible pin must never reach the resume-only route.
+        return RoutingDecision(tier, "codex", "gpt", "high", "only_eligible_provider", False,
+                               ineligible={"claude_code": "bridge_admission_would_refuse:absolute_ceiling"})
+
+    launcher = type("LegacyLauncher", (), {"launch_mode": "legacy"})()
+    dispatch = Dispatcher(PlacingService(), TaskPrincipal(actor="d", role="orchestrator", projects=("p",)),
+                          launcher, "p", emit=events.append, clock=lambda: 1000.0,  # type: ignore[arg-type]
+                          router=route)
+    retry = Task("p/A", "r2", "todo", {
+        "text": "Original work", "engine_preference": ["codex"], "fallback": "wait",
+        "attempt_continuation": {
+            "engine": "claude", "native_id": "thread", "check_failures": ["assertion detail"],
+            "preserved_branch": "dispatch-attempt/p/A/1", "preserved_files": ["src/a.py"],
+            "preserved_message": "partial repair",
+        },
+    }, {"receipt": {"engine_family": "claude_code"}})
+
+    placement = dispatch._place(retry, dispatch._requested(retry), {}, {})
+    launch = dispatch._launch_input(retry.data, {"engine_family": placement.engine_family})  # type: ignore[union-attr]
+
+    assert recorded[0].engine_family == "codex"
+    assert "resume_session" not in launch and "resume_native_id" not in launch
+    assert all(part in launch["text"] for part in ("assertion detail", "src/a.py", "partial repair"))
+    assert len(events) == 1
+    assert events[0].startswith(
+        "rerouted p/A local claude_code -> codex tier=thinking | pinned engine over budget | "
+        "only_eligible_provider"
+    )
+
+
+def test_pinned_repair_waits_when_policy_has_no_eligible_engine() -> None:
+    events: list[str] = []
+
+    class PlacingService:
+        lease_seconds = 900
+
+        def record_placement(self, *args: Any) -> None:
+            raise AssertionError("must not launch without an eligible engine")
+
+    decision = RoutingDecision("thinking", None, None, None, "no_eligible_provider", False,
+                               ineligible={"codex": "project_fallback_wait",
+                                           "claude_code": "absolute_ceiling"})
+    launcher = type("LegacyLauncher", (), {"launch_mode": "legacy"})()
+    dispatch = Dispatcher(PlacingService(), TaskPrincipal(actor="d", role="orchestrator", projects=("p",)),
+                          launcher, "p", emit=events.append,  # type: ignore[arg-type]
+                          router=lambda *args: decision)
+    retry = Task("p/A", "r2", "todo", {
+        "fallback": "wait", "attempt_continuation": {"engine": "claude", "native_id": "thread"},
+    }, {"receipt": {"engine_family": "claude_code"}})
+
+    assert dispatch._place(retry, dispatch._requested(retry), {}, {}) is None
+    assert len(events) == 1 and events[0].startswith("waiting p/A ")
 
 
 def test_place_reports_waiting_when_no_engine_is_eligible() -> None:

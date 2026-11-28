@@ -309,8 +309,15 @@ class Dispatcher:
                 if tier else "A previous conversation left work in this checkout and an acceptance check failed."
             )
             failures = check_failures if tier else check_failures[-1:]
+            changed = list(resume.get("preserved_files") or [])
+            files = ", ".join(changed[:50]) + (" ..." if len(changed) > 50 else "")
+            message = " ".join(str(resume.get("preserved_message") or "").split())[:500]
+            diff_summary = ("" if not branch else
+                            f"\n\nPrevious work is kept on branch {branch}. Files it changed: "
+                            f"{files or 'none'}. Its last commit message: {message or 'none'}.")
             prompt = (introduction + " Fix the cause in this checkout, rerun the failing checks and commit the fix."
-                      + warning + "\n\n" + "\n\n".join(failures) + "\n\nOriginal task\n" + str(task["text"]))
+                      + warning + diff_summary + "\n\n" + "\n\n".join(failures)
+                      + "\n\nOriginal task\n" + str(task["text"]))
             return {**task, "text": prompt}
         if branch:
             changed = list(resume.get("preserved_files") or [])
@@ -587,10 +594,26 @@ class Dispatcher:
         continuation = data.get("attempt_continuation") or {}
         tier = continuation.get("escalation_tier") or data.get("tier") or "thinking"
         required_engine = self._required_engine(task)
+        rerouted_pinned_engine: Engine | None = None
         where, environment = "local", None
         if requested in ("local", "auto") and self.router is not None:
             try:
                 preference, fallback = _routing_options(data)
+                if required_engine and required_engine not in busy:
+                    eligibility_key = (tier, preference, fallback, tuple(busy.items()), None)
+                    if eligibility_key not in picks:
+                        picks[eligibility_key] = self.router(tier, busy, preference, fallback, None)
+                    eligibility = picks[eligibility_key]
+                    excluded = {
+                        _routing.provider(name.rsplit(":", 1)[-1])
+                        for name in eligibility.ineligible
+                    }
+                    if required_engine in excluded:
+                        # A resumable conversation is useful only while its engine remains
+                        # eligible under the exact policy used for a new attempt.  Dropping
+                        # the pin also makes _launch_input carry the failure into a fresh brief.
+                        rerouted_pinned_engine = required_engine
+                        required_engine = None
                 key = (tier, preference, fallback, tuple(busy.items()), required_engine)
                 if key not in picks:
                     picks[key] = self.router(tier, busy, preference, fallback, required_engine)
@@ -662,6 +685,10 @@ class Dispatcher:
         previous = (dispatch.get("receipt") or {}).get("engine_family")
         if where == "cloud":
             self._event("placed", task.task_id, f"cloud {engine} env={environment} tier={tier} | {detail}")
+        elif rerouted_pinned_engine:
+            self._event("rerouted", task.task_id,
+                        f"local {previous or rerouted_pinned_engine} -> {engine} tier={tier} | "
+                        f"pinned engine over budget | {detail}")
         elif previous and not required_engine:
             self._event("rerouted", task.task_id, f"local {previous} -> {engine} tier={tier} | {detail}")
         else:
