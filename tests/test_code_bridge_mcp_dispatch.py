@@ -8,7 +8,7 @@ from types import SimpleNamespace
 import pytest
 
 from lazytools.code_bridge import _dispatch, _mcp_dispatch
-from lazytools.mcp_server.server import expand_tools
+from lazytools.mcp_server.server import _scoped_tools, expand_tools
 
 
 def test_status_uses_board_jobs_tickets_and_log(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -38,6 +38,7 @@ def test_write_gate_and_live_owner(tmp_path: Path, monkeypatch: pytest.MonkeyPat
     monkeypatch.setenv("LAZYTOOLS_CODE_BRIDGE_DB", str(tmp_path / "bridge.sqlite"))
     tools = _mcp_dispatch.DispatchTools(projects_db=str(tmp_path / "projects.db"))
     assert set(expand_tools([tools], read_only=True)) == {"dispatch_status"}
+    assert not _scoped_tools(expand_tools([_mcp_dispatch.DispatchTools(allow_write=True)], read_only=False))
     with pytest.raises(PermissionError):
         tools.dispatch_start("p")
     lock = tools._lock("p")

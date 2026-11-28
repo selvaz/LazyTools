@@ -42,7 +42,7 @@ class DispatchTools:
         with _store.build_store() as store:
             jobs = [job for job in _jobs.list_jobs(store, all_jobs=True)
                     if str(job.get("task_id") or "").startswith(project + "/")
-                    and job.get("status") not in _store.TERMINAL_STATUSES]
+                    and job.get("status") not in _dispatch.TERMINAL]
         principal = TaskPrincipal(actor="code-bridge-dispatch", role="orchestrator", projects=(project,))
         launcher = _dispatch_launch.BridgeLauncher(None, principal, project)
         job_ids = {str(job["job_id"]) for job in jobs}
