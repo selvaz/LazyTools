@@ -2048,6 +2048,21 @@ installed and authenticated (`gh auth login` or `GH_TOKEN`).
 
 ### Dispatcher recovery
 
+### Project doctor
+
+Run `lazytools-code-bridge doctor --project P --repo-root OWNER/REPO=PATH`
+before an unattended dispatch. It reads every unfinished task and reports the
+complete set of errors and warnings: checkout identity and branch state, cloud
+environment and preflight evidence, local engines and slots, check executables
+and pytest paths, dependencies, durable stores, approval/autonomy provisioning,
+quota availability, and (with `--land`) GitHub CLI authentication. Use `--json`
+for a stable findings object. Errors exit 1; warnings alone exit 0.
+
+`dispatch` performs the identical check before constructing its launcher or
+claiming work. It emits one `doctor` event for every finding and exits 2 when an
+error exists. `--skip-doctor` is an emergency override and emits a visible
+`doctor-warning` event; it should not be used for normal unattended operation.
+
 Each dispatcher claim has a 180-second lease by default. Set it with
 `--lease-seconds` or `--lease-minutes`. The dispatcher renews its claims together
 on each tick. Renewal continues during acceptance checks and landing, so jobs
