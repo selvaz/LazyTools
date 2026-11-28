@@ -1075,10 +1075,11 @@ lazytools-code-bridge approver-credential autonomy --mode total --preset with-pr
 lazytools-code-bridge approver-credential autonomy --show --registry-db REGISTRY_DB
 ```
 
-`supervised` is the default mode. With either preset it delegates
-`git_local`, `git_push_job_branch`, `gh_pr_create`, and `checks_in_checkout`
-once the owner has provisioned the cards. In `total` mode the CEO can use cards for classes
-outside the preset's owner-only floor.
+`supervised` is the default mode. Both presets delegate `git_local`,
+`git_push_job_branch`, `gh_pr_create`, and `checks_in_checkout` once the owner
+has provisioned the cards. `solo-dev` also delegates `edit_in_checkout` in
+supervised mode. In `total` mode the CEO can use cards for classes outside
+the preset's owner-only floor, including `edit_in_checkout` in both presets.
 
 | Preset | Classes that stay with the owner in total mode |
 | --- | --- |
@@ -1117,8 +1118,14 @@ parentheses or quotes. The `git_local` class covers explicit-path `git add`,
 `git commit`, and `git merge origin/BRANCH` into the job branch when the
 tracking ref and changed paths pass the checkout checks. Owners with an
 existing hand can rerun `approver-credential autonomy` with their current
-mode to issue the merge card for new jobs. The `workspace_tools` class
-covers native file edits, directory creation, and `git worktree`.
+mode to issue the merge card for new jobs. The `edit_in_checkout` class covers
+native Write, Edit, MultiEdit and NotebookEdit requests in the job checkout or
+its own temp directory. It resolves in-root links and `..`; paths that leave
+their root, Git control files and other protected paths require a ticket.
+This card does not authorize shell commands. The `workspace_tools` class
+covers directory creation and `git worktree`. Owners with an existing hand
+must rerun `approver-credential autonomy` with their current mode and preset
+to issue the edit card for new jobs.
 
 Use `status JOB --json` or `result JOB --json` to see the actor, mode,
 class, and match reason on each card-use receipt. The
