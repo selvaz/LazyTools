@@ -82,6 +82,10 @@ def ticket_ttl() -> timedelta:
 #: does not have to wait seconds for the poll loop to notice.
 POLL_SECONDS_ENV = "LAZYTOOLS_CODE_BRIDGE_POLL_SECONDS"
 DEFAULT_POLL_SECONDS = 2.0
+#: Plain engine activity (every streamed message or delta) refreshes the job heartbeat at most this often.
+#: The dispatcher takes a job for dead only after minutes of silence, so a write per streamed event only
+#: added Store lock contention ('database is locked' with several jobs). Tool start/finish always write.
+HEARTBEAT_MIN_INTERVAL = 15.0
 
 
 def poll_seconds() -> float:
@@ -524,6 +528,8 @@ def run_job(
             _store.write_meta(store, job_id, meta)
             registry.write(job_id, task, tool_name=engine_name, status=status, result=result, error=error)
 
+        last_heartbeat = [0.0]
+
         def record_heartbeat(
             *,
             tool_started: tuple[str, str] | None = None,
@@ -534,6 +540,10 @@ def run_job(
             # result events) are recorded so the dispatcher does not take a
             # long shell command (no engine events) for a dead job.
             now = time.time()
+            changes_tools = tool_started is not None or tool_finished is not None or tools_settled
+            if not changes_tools and now - last_heartbeat[0] < HEARTBEAT_MIN_INTERVAL:
+                return
+            last_heartbeat[0] = now
             meta = _store.read_meta(store, job_id) or {}
             meta["heartbeat_at"] = now
             calls = dict(meta.get("tool_calls") or {})
