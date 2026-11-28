@@ -24,6 +24,7 @@ from lazytools.projects.task_fields import (
     Placement,
     plan_fields,
     requested_placement,
+    settle_failed_dependencies,
     task_id,
     touches_overlap,
     validate_dependencies,
@@ -430,6 +431,29 @@ class ProjectTaskService:
         self.quarantine_threshold = quarantine_threshold
         self.clock = clock
         self.landing_check = landing_check
+
+    def block_failed_dependencies(self, principal: TaskPrincipal, project: str) -> list[tuple[str, str]]:
+        """Atomically settle unstarted tasks whose dependency has failed."""
+        principal.require_role("orchestrator", "owner")
+        principal.require_project(project)
+        # The dispatcher calls this every loop: look first in a read transaction, so the common case
+        # (nothing to block) never takes the write lock; the write transaction then decides again.
+        with transaction(self.path) as store:
+            board = store.read(_board_key(project))
+        if board is None:
+            raise TaskServiceError("not_found", "Project board not found")
+        if not any(settle_failed_dependencies(board["tasks"], self.clock())):
+            return []
+        with transaction(self.path, write=True) as store:
+            board = store.read(_board_key(project))
+            if board is None:
+                raise TaskServiceError("not_found", "Project board not found")
+            now = self.clock()
+            blocked, released = settle_failed_dependencies(board["tasks"], now)
+            if blocked or released:
+                board["updated_at"] = now
+                store.write(_board_key(project), board)
+            return blocked
 
     def mark_landed(
         self, principal: TaskPrincipal, project: str, task_id: str, pr_url: str, merge_commit: str, reason: str,
