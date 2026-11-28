@@ -22,6 +22,7 @@ from lazytools.projects.plan_edit import _board_key
 from lazytools.projects.records import get_project, touch_project_progress
 from lazytools.projects.task_fields import (
     Placement,
+    block_failed_dependencies,
     plan_fields,
     requested_placement,
     task_id,
@@ -430,6 +431,21 @@ class ProjectTaskService:
         self.quarantine_threshold = quarantine_threshold
         self.clock = clock
         self.landing_check = landing_check
+
+    def block_failed_dependencies(self, principal: TaskPrincipal, project: str) -> list[tuple[str, str]]:
+        """Atomically settle unstarted tasks whose dependency has failed."""
+        principal.require_role("orchestrator", "owner")
+        principal.require_project(project)
+        with transaction(self.path, write=True) as store:
+            board = store.read(_board_key(project))
+            if board is None:
+                raise TaskServiceError("not_found", "Project board not found")
+            now = self.clock()
+            blocked = block_failed_dependencies(board["tasks"], now)
+            if blocked:
+                board["updated_at"] = now
+                store.write(_board_key(project), board)
+            return blocked
 
     def mark_landed(
         self, principal: TaskPrincipal, project: str, task_id: str, pr_url: str, merge_commit: str, reason: str,

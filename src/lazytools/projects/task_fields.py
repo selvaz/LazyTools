@@ -22,6 +22,30 @@ def task_id(task: dict[str, Any], index: int) -> str:
     return task.get("task_id") or f"@{index}"
 
 
+def block_failed_dependencies(tasks: list[dict[str, Any]], now: float) -> list[tuple[str, str]]:
+    """Mark unstarted descendants of terminal failures and return their root causes."""
+    indexed = {task_id(task, i): task for i, task in enumerate(tasks)}
+    roots = [key for key, task in indexed.items()
+             if task.get("status") in ("failed", "cancelled") and not task.get("failed_dependency_id")]
+    blocked: list[tuple[str, str]] = []
+    for root in roots:
+        reached = {root}
+        while True:
+            descendants = {key for key, task in indexed.items() if key not in reached
+                           and reached.intersection(task.get("dependency_ids", []))}
+            if not descendants:
+                break
+            reached.update(descendants)
+        for key, task in indexed.items():
+            if (key in reached and key != root and task.get("status") == "todo"
+                    and not task.get("owner") and task.get("claimed_at") is None
+                    and not task.get("active_queue_claim")):
+                task.update(status="failed", error=f"dependency {root} failed", failed_dependency_id=root,
+                            completed_at=now)
+                blocked.append((key, root))
+    return blocked
+
+
 def requested_placement(task: dict[str, Any]) -> RequestedPlacement:
     """A nondefault execution profile needs the local runtime."""
     default: RequestedPlacement = "local" if task.get("requested_profile") not in (None, "default") else "auto"

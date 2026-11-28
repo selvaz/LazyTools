@@ -230,7 +230,6 @@ class Dispatcher:
         self.land = land  # push each published branch to origin and open its PR
         # Accepted, published tasks awaiting landing; drained after every claimed task is settled.
         self.landings: list[tuple[Task, Path, str, str, list[str]]] = []
-        self.reported_blocked: set[str] = set()
         self.unsupported: set[str] = set()
         self.waiting: dict[str, str] = {}
         self.seen_tickets: set[str] = set()
@@ -693,13 +692,9 @@ class Dispatcher:
             tasks.update((task["task_id"], task) for task in page["tasks"])
         return tasks
 
-    def _blocked(self, tasks: list[Task]) -> None:
-        failed = {task.task_id.rsplit("/", 1)[1] for task in tasks if task.status == "failed"}
-        for task in tasks:
-            if (task.status == "todo" and failed.intersection(task.data.get("dependency_ids", []))
-                    and task.task_id not in self.reported_blocked):
-                self._event("blocked", task.task_id)
-                self.reported_blocked.add(task.task_id)
+    def _blocked(self) -> None:
+        for identifier, dependency in self.service.block_failed_dependencies(self.principal, self.project_id):
+            self._event("blocked", f"{self.project_id}/{identifier}", f"dependency {dependency} failed")
 
     def _owner_is_dead(self, owner: DispatcherOwner) -> bool:
         return owner["host"] == self.owner["host"] and _lockfile.process_has_exited(owner["pid"], owner["started_at"])
@@ -1416,10 +1411,10 @@ class Dispatcher:
                 claims.append({**claim, "job_ref": job_ref})
                 if branch:
                     running_branches.add(str(branch))
+        self._blocked()
         tasks = self.task_reader(self.service, self.project_id)
-        self._blocked(tasks)
         return sum(task.status == "todo" for task in tasks), sum(
-            task.status == "claimed" or bool((task.dispatch or {}).get("pending_landing")) for task in tasks
+            task.status in ("claimed", "running") or bool((task.dispatch or {}).get("pending_landing")) for task in tasks
         )
 
     def shutdown(self) -> None:
@@ -1476,7 +1471,7 @@ class Dispatcher:
                 )
                 if once or (not ready and not running and not budget_wait
                             and not any(not reason.startswith("dependency ") for reason in self.waiting.values())):
-                    return 0
+                    return int(any(task.status == "failed" for task in self.task_reader(self.service, self.project_id)))
             finally:
                 stop.set()
                 if heartbeat.ident is not None:

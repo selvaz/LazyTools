@@ -25,7 +25,7 @@ from uuid import uuid4
 from lazybridge import Store
 
 from lazytools.projects.keys import BOARD_KEY_PREFIX
-from lazytools.projects.task_fields import plan_fields, validate_dependencies
+from lazytools.projects.task_fields import plan_fields, task_id, validate_dependencies
 
 CAS_ATTEMPTS = 8
 
@@ -319,6 +319,12 @@ def reopen_task(store: Store, project_id: str, task_index: int, expected_text: s
             "claimed_at": None,
             "completed_at": None,
         }
+        reopened_id = task_id(task, task_index)
+        tasks[task_index].pop("failed_dependency_id", None)
+        for dependent in tasks:
+            if dependent.get("status") == "failed" and dependent.get("failed_dependency_id") == reopened_id:
+                dependent.update(status="todo", error="", completed_at=None)
+                dependent.pop("failed_dependency_id", None)
         events = _event(
             doc, event="reopened", task_index=task_index, was=status, attempts_before=attempts, reason=reason.strip()
         )

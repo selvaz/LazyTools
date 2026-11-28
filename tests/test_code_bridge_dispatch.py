@@ -44,6 +44,15 @@ class FakeService:
         return [Task(f"{project}/{name}", "rev", row["status"], row,
                      self.claims.get(name)) for name, row in self.rows.items()]
 
+    def block_failed_dependencies(self, _principal: Any, _project: str) -> list[tuple[str, str]]:
+        from lazytools.projects.task_fields import block_failed_dependencies
+
+        rows = [{**row, "task_id": name} for name, row in self.rows.items()]
+        blocked = block_failed_dependencies(rows, 0)
+        for row in rows:
+            self.rows[row["task_id"]].update(row)
+        return blocked
+
     def next_ready(self, _principal: Any, project: str, limit: int = 20) -> dict[str, Any]:
         ready = []
         for name, row in self.rows.items():
