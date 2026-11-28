@@ -1575,11 +1575,25 @@ def dispatch(args: argparse.Namespace) -> int:
     knowledge_db = getattr(args, "knowledge_db", None)
     knowledge_store = _store.build_store(Path(knowledge_db).expanduser()) if knowledge_db is not None else None
     try:
-        return Dispatcher(service, principal, launcher, args.project, parallel=args.parallel, router=router,
+        dispatcher = Dispatcher(service, principal, launcher, args.project, parallel=args.parallel, router=router,
                           capacity=capacity, cloud_placer=cloud_placer, local_holders=local_holders,
                           json_events=bool(getattr(args, "json", False)),
                           knowledge_store=knowledge_store, land=bool(getattr(args, "land", False)),
-                          stale_minutes=getattr(args, "stale_minutes", DEFAULT_STALE_MINUTES)).run(once=args.once)
+                          stale_minutes=getattr(args, "stale_minutes", DEFAULT_STALE_MINUTES))
+        delay = 5.0
+        while True:
+            try:
+                return dispatcher.run(once=args.once)
+            except Exception as exc:
+                if not getattr(args, "supervise", False):
+                    raise
+                dispatcher._event("restart", args.project, f"{type(exc).__name__}: {exc}; retrying in {delay:g}s")
+                try:
+                    dispatcher.sleep(delay)
+                except KeyboardInterrupt:
+                    dispatcher.shutdown()
+                    return 130
+                delay = min(delay * 2, 300.0)
     finally:
         if knowledge_store is not None:
             knowledge_store.close()

@@ -2231,6 +2231,7 @@ def build_parser() -> argparse.ArgumentParser:
     dispatch_p.add_argument("--parallel", type=int, metavar="N",
                             help="Optional cap on active tasks, in addition to local and cloud slot limits.")
     dispatch_p.add_argument("--once", action="store_true")
+    dispatch_p.add_argument("--supervise", action="store_true", help="Restart after unexpected errors with backoff.")
     dispatch_p.add_argument("--dry-run", action="store_true")
     dispatch_p.add_argument("--repo-root", action="append", default=[], metavar="SLUG=PATH",
                             help="Map a task repository slug to its local checkout (repeatable).")
