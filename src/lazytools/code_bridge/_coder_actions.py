@@ -632,6 +632,11 @@ class Workspace:
         if any(isinstance(path, str) and production_path(path) for path in paths):
             return "production_task"
         if request.kind == "tool" and request.name in _EDIT_TOOLS:
+            # Classify what the write really reaches: an in-checkout link to a production folder is a
+            # production write, exactly like naming that folder directly.
+            targets = self._edit_targets(request) or ()
+            if any(target is not None and production_path(str(target)) for target in targets):
+                return "production_task"
             return "edit_in_checkout" if self.action(request, ticket_kind="edit_in_checkout") else "unknown"
         command = request.arguments.get("command")
         if isinstance(command, str):
@@ -667,6 +672,20 @@ class Workspace:
         temp = self.temp
         return bool(paths) and all(path is not None and path.is_relative_to(temp) for path in paths or ())
 
+    def _edit_targets(self, request: ApprovalRequest, cwd: Path | None = None) -> tuple[Path | None, ...] | None:
+        """Resolved targets of a file edit request (None for a target outside the roots)."""
+        try:
+            if cwd is None:
+                cwd = _scope(request.cwd or str(self.cwd), self.cwd, self.roots)
+            if cwd is None or not cwd.is_dir():
+                return None
+            return tuple(
+                self._write(value, cwd, follow_inside=True) if isinstance(value, str) else None
+                for key, value in request.arguments.items() if key in _EDIT_PATH_KEYS
+            )
+        except (OSError, RuntimeError, UnicodeError):
+            return None
+
     def action(self, request: ApprovalRequest, *, ticket_kind: str | None = None) -> tuple[Path, CardAction] | None:
         try:
             return self._action(request, ticket_kind)
@@ -679,10 +698,7 @@ class Workspace:
             return None
         if request.kind == "tool" and request.name in _EDIT_TOOLS:
             argv = ["bridge-edit", request.name]
-            paths = tuple(
-                self._write(value, cwd, follow_inside=True) if isinstance(value, str) else None
-                for key, value in request.arguments.items() if key in _EDIT_PATH_KEYS
-            )
+            paths = self._edit_targets(request, cwd) or ()
         else:
             command = request.arguments.get("command")
             if (

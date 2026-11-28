@@ -468,3 +468,24 @@ def test_original_revocation_and_registry_isolation(writer, monkeypatch):
     with _registry.registry_store(sibling) as store:
         assert len(store.items(prefix=DEFAULT_PREFIX)) == 1
     assert len(_registry.Registry(_store.build_store(db), registry_db).queue.list_card_approvals()) == 1
+
+
+def test_edit_through_in_checkout_link_to_production_is_a_production_task(writer):
+    """Codex P1 on #470: classify the resolved target, not the literal path."""
+    repo, _db, _registry_db, _flags = writer
+    production = repo / "production"
+    production.mkdir()
+    alias = repo / "alias"
+    if os.name == "nt":
+        subprocess.run(["cmd", "/c", "mklink", "/J", str(alias), str(production)], check=True, capture_output=True)
+    else:
+        alias.symlink_to(production, target_is_directory=True)
+    workspace = _coder_actions.Workspace.capture(repo, None, autonomy=True)
+
+    def write(path: Path) -> ApprovalRequest:
+        return ApprovalRequest(provider="claude-code", kind="tool", name="Write",
+                               arguments={"file_path": str(path), "content": "x"}, cwd=str(repo))
+
+    assert workspace.classify(write(production / "settings.yml")) == "production_task"
+    assert workspace.classify(write(alias / "settings.yml")) == "production_task"
+    assert workspace.classify(write(repo / "notes.txt")) == "edit_in_checkout"
