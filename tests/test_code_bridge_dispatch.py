@@ -45,10 +45,10 @@ class FakeService:
                      self.claims.get(name)) for name, row in self.rows.items()]
 
     def block_failed_dependencies(self, _principal: Any, _project: str) -> list[tuple[str, str]]:
-        from lazytools.projects.task_fields import block_failed_dependencies
+        from lazytools.projects.task_fields import settle_failed_dependencies
 
         rows = [{**row, "task_id": name} for name, row in self.rows.items()]
-        blocked = block_failed_dependencies(rows, 0)
+        blocked, _released = settle_failed_dependencies(rows, 0)
         for row in rows:
             self.rows[row["task_id"]].update(row)
         return blocked
@@ -332,6 +332,35 @@ def test_failed_dependency_chain_diamond_and_retry(tmp_path: Path, root_status: 
         assert result.startswith("reopened")
         board = store.read(_board_key(PROJECT))
         assert [t["status"] for t in board["tasks"]] == ["todo", "todo", "todo", "todo", "done"]
+
+
+def test_blocked_dependents_return_when_root_recovers_by_any_path(tmp_path: Path) -> None:
+    """A root recovered outside reopen (for example mark_landed sets it done) releases its dependents."""
+    from lazytools.projects.plan_edit import _board_key
+    from test_projects_task_service import PROJECT, admit, task
+
+    path = str(tmp_path / "projects.sqlite")
+    projects = ProjectsTools(store_db=path, allow_write=True)
+    projects.projects_create(PROJECT, "Dependencies", "Finish the graph")
+    admit(projects, [task("A"), task("B", dependency_ids=["A"]), task("C", dependency_ids=["B"])])
+    service = ProjectTaskService(path)
+    principal = TaskPrincipal(actor="dispatcher", role="orchestrator", projects=(PROJECT,))
+    with Store(db=path) as store:
+        board = store.read(_board_key(PROJECT))
+        board["tasks"][0].update(status="failed", error="boom")
+        store.write(_board_key(PROJECT), board)
+    dispatch = Dispatcher(service, principal, FakeLauncher(FakeService()), PROJECT, emit=lambda _line: None)
+    dispatch.pass_once()
+    with Store(db=path) as store:
+        board = store.read(_board_key(PROJECT))
+        assert [t["status"] for t in board["tasks"]] == ["failed", "failed", "failed"]
+        board["tasks"][0].update(status="done", error="")
+        store.write(_board_key(PROJECT), board)
+    assert service.block_failed_dependencies(principal, PROJECT) == []
+    with Store(db=path) as store:
+        board = store.read(_board_key(PROJECT))
+        assert [t["status"] for t in board["tasks"]] == ["done", "todo", "todo"]
+        assert all("failed_dependency_id" not in t for t in board["tasks"])
 
 
 def test_restart_adopts_submitted_job_without_launching_again() -> None:

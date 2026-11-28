@@ -22,8 +22,26 @@ def task_id(task: dict[str, Any], index: int) -> str:
     return task.get("task_id") or f"@{index}"
 
 
-def block_failed_dependencies(tasks: list[dict[str, Any]], now: float) -> list[tuple[str, str]]:
-    """Mark unstarted descendants of terminal failures and return their root causes."""
+def release_recovered_dependents(tasks: list[dict[str, Any]]) -> list[str]:
+    """Return to ``todo`` every task blocked by a dependency that is no longer failed or cancelled.
+
+    One rule for every recovery path (reopen, mark landed, a manual status edit): the block lasts only
+    while its root failure does.
+    """
+    indexed = {task_id(task, i): task for i, task in enumerate(tasks)}
+    released = []
+    for key, task in indexed.items():
+        root = task.get("failed_dependency_id")
+        if root and task.get("status") == "failed" and indexed.get(root, {}).get("status") not in ("failed", "cancelled"):
+            task.update(status="todo", error="", completed_at=None)
+            task.pop("failed_dependency_id", None)
+            released.append(key)
+    return released
+
+
+def settle_failed_dependencies(tasks: list[dict[str, Any]], now: float) -> tuple[list[tuple[str, str]], list[str]]:
+    """Apply the failed-dependency rule; return (newly blocked with root, released)."""
+    released = release_recovered_dependents(tasks)
     indexed = {task_id(task, i): task for i, task in enumerate(tasks)}
     roots = [key for key, task in indexed.items()
              if task.get("status") in ("failed", "cancelled") and not task.get("failed_dependency_id")]
@@ -43,7 +61,7 @@ def block_failed_dependencies(tasks: list[dict[str, Any]], now: float) -> list[t
                 task.update(status="failed", error=f"dependency {root} failed", failed_dependency_id=root,
                             completed_at=now)
                 blocked.append((key, root))
-    return blocked
+    return blocked, released
 
 
 def requested_placement(task: dict[str, Any]) -> RequestedPlacement:

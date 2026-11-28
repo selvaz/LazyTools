@@ -22,9 +22,9 @@ from lazytools.projects.plan_edit import _board_key
 from lazytools.projects.records import get_project, touch_project_progress
 from lazytools.projects.task_fields import (
     Placement,
-    block_failed_dependencies,
     plan_fields,
     requested_placement,
+    settle_failed_dependencies,
     task_id,
     touches_overlap,
     validate_dependencies,
@@ -442,15 +442,15 @@ class ProjectTaskService:
             board = store.read(_board_key(project))
         if board is None:
             raise TaskServiceError("not_found", "Project board not found")
-        if not block_failed_dependencies(board["tasks"], self.clock()):
+        if not any(settle_failed_dependencies(board["tasks"], self.clock())):
             return []
         with transaction(self.path, write=True) as store:
             board = store.read(_board_key(project))
             if board is None:
                 raise TaskServiceError("not_found", "Project board not found")
             now = self.clock()
-            blocked = block_failed_dependencies(board["tasks"], now)
-            if blocked:
+            blocked, released = settle_failed_dependencies(board["tasks"], now)
+            if blocked or released:
                 board["updated_at"] = now
                 store.write(_board_key(project), board)
             return blocked
