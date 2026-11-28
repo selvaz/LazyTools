@@ -245,7 +245,9 @@ def check_project(project: str, args: argparse.Namespace) -> list[Finding]:
     if not any(reading.error is None and reading.windows for reading in readings.values()):
         detail = "; ".join(f"{engine}: {reading.error or 'no quota windows'}"
                            for engine, reading in readings.items()) or "no telemetry returned"
-        findings.append(_finding("error", "quota-telemetry-unreadable", "routing", detail,
+        # A warning, not an error: the dispatcher already waits instead of launching when no usable
+        # quota reading exists, so the run is safe; the operator should still fix it.
+        findings.append(_finding("warning", "quota-telemetry-unreadable", "routing", detail,
                                  "Authenticate at least one engine and refresh its quota telemetry."))
     if getattr(args, "land", False):
         gh = shutil.which("gh")

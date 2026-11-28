@@ -118,3 +118,13 @@ def test_dispatch_starts_when_doctor_has_warnings_only(monkeypatch) -> None:
     args = argparse.Namespace(project="p", skip_doctor=False, json=False, lease_minutes=None,
                               lease_seconds=None, dry_run=True)
     assert _dispatch.dispatch(args) == 0
+
+
+def test_unreadable_quota_telemetry_is_only_a_warning(monkeypatch, tmp_path: Path) -> None:
+    """The dispatcher waits when no usable quota reading exists, so it must still be allowed to start."""
+    monkeypatch.setattr(_doctor, "_resolve_store_db", lambda _value: None)
+    monkeypatch.setattr(_doctor, "read_readings",
+                        lambda **_kwargs: {"codex": type("R", (), {"error": "closed", "windows": ()})()})
+    findings = _doctor.check_project("p", argparse.Namespace(repo_root=[]))
+    telemetry = [finding for finding in findings if finding.code == "quota-telemetry-unreadable"]
+    assert telemetry and all(finding.severity == "warning" for finding in telemetry)
