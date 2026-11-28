@@ -1932,6 +1932,29 @@ def _real_retrying_dispatch(
     return service, launched, crash_first_attempt, dispatcher, placement, git, board_task
 
 
+def test_approval_wait_renews_the_dispatcher_claim(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from lazytools.code_bridge import _dispatch
+
+    service, _, start, _, _, _, board_task = _real_retrying_dispatch(tmp_path, monkeypatch)
+    events: list[str] = []
+    dispatch = start(events, status="running", error=None, pid=4321, heartbeat_at=1)
+    monkeypatch.setattr(_dispatch, "_pid_alive", lambda pid: pid == 4321)
+    job_ref = board_task()["dispatches"][-1]["job_ref"]
+    monkeypatch.setattr(dispatch.launcher, "pending", lambda: [{"approval_id": "ticket-1", "job_id": job_ref}])
+    cancelled: list[str] = []
+    monkeypatch.setattr(dispatch.launcher, "cancel", lambda job_ref, **_: cancelled.append(job_ref) or False)
+    original_expiry = board_task()["dispatches"][-1]["receipt"]["lease_expires_at"]
+    now = original_expiry - 1
+    service.clock = dispatch.clock = lambda: now
+    dispatch.pass_once()
+    now = original_expiry + 1
+    dispatch.pass_once()
+    receipt = board_task()["dispatches"][-1]["receipt"]
+    assert receipt["lease_expires_at"] > now > original_expiry
+    assert board_task()["status"] == "claimed" and cancelled == []
+    assert events.count("waiting queue-test/A awaiting approval ticket-1") == 1
+
+
 @pytest.mark.parametrize(("limit", "fixed", "escalation_fixed"), [(1, True, False), (None, False, False),
                                                                (None, False, True)])
 def test_check_retries_resume_and_recheck(
