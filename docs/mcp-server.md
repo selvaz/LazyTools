@@ -458,7 +458,9 @@ with `--allow-unsafe`.
 their pending tickets, the live dispatcher owner and recent JSON events. `last_n` is
 bounded to 1,000. With `--allow-unsafe`, `dispatch_start(project, repo_roots=None,
 worktree_root=None, land=False)` starts a detached supervised dispatcher and returns
-its PID and event log path. `repo_roots` maps repository slugs to checkout paths;
+its PID and event log path after confirming ownership. If the child exits or does
+not acquire ownership within 10 seconds, the result reports failure and includes
+the new log tail. `repo_roots` maps repository slugs to checkout paths;
 `land` opts into publication. A live project owner prevents another dispatcher.
 
 `dispatch_stop(project)` requests a clean stop and waits up to 10 seconds; if it

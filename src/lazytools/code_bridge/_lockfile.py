@@ -19,6 +19,7 @@ import subprocess
 import sys
 import time
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -183,6 +184,7 @@ class JobLock:
     lock_dir: Path
     cwd: Path
     _path: Path | None = None
+    owner_alive: Callable[[dict[str, Any]], bool] | None = None
 
     @property
     def path(self) -> Path:
@@ -228,7 +230,8 @@ class JobLock:
             with contextlib.suppress(OSError, ValueError):
                 existing = json.loads(self.path.read_text())
             pid = existing.get("pid")
-            if isinstance(pid, int) and _pid_alive(pid):
+            alive = self.owner_alive(existing) if self.owner_alive else isinstance(pid, int) and _pid_alive(pid)
+            if alive and isinstance(pid, int):
                 raise LockHeld(self.cwd, pid, str(existing.get("job_id", "?")))
 
             # Stale: the pid that wrote it is gone. Reclaim via an atomic

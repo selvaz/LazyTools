@@ -1543,20 +1543,24 @@ def usable_reading(reading: Any, *, max_age_seconds: float = 600.0) -> bool:
     return reading.age_seconds(now=datetime.now(observed.tzinfo)) <= max_age_seconds
 
 
+def _owner_alive(owner: dict[str, Any]) -> bool:
+    return (isinstance(owner.get("pid"), int)
+            and owner.get("host") == socket.gethostname().casefold()
+            and not _lockfile.process_has_exited(owner["pid"], owner.get("started_at")))
+
+
 def owner_lock(project: str, store_db: str | None) -> _lockfile.JobLock:
     """The project owner lock, shared by CLI and MCP control."""
     location = str(Path(store_db).expanduser().resolve()) if store_db else ":memory:"
     key = hashlib.sha256(f"{location}\0{project}".encode()).hexdigest()
     lock_dir = Path(store_db).expanduser().resolve().parent / "dispatch-locks" if store_db else _store.locks_dir()
-    return _lockfile.JobLock(lock_dir, Path(key))
+    return _lockfile.JobLock(lock_dir, Path(key), owner_alive=_owner_alive)
 
 
 def live_owner(lock: _lockfile.JobLock) -> dict[str, Any] | None:
     try:
         owner = json.loads(lock.path.read_text(encoding="utf-8"))
-        if (isinstance(owner, dict) and isinstance(owner.get("pid"), int)
-                and owner.get("host") == socket.gethostname().casefold()
-                and not _lockfile.process_has_exited(owner["pid"], owner.get("started_at"))):
+        if isinstance(owner, dict) and _owner_alive(owner):
             return owner
     except (OSError, ValueError, TypeError):
         pass

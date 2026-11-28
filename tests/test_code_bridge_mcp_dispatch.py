@@ -1,7 +1,9 @@
 ﻿from __future__ import annotations
 
 import argparse
+import json
 import os
+import socket
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -43,7 +45,6 @@ def test_write_gate_and_live_owner(tmp_path: Path, monkeypatch: pytest.MonkeyPat
     with pytest.raises(PermissionError):
         tools.dispatch_start("p")
     lock = tools._lock("p")
-    import socket
     lock.acquire("owner", metadata={"host": socket.gethostname().casefold(),
                                     "started_at": _dispatch._lockfile.process_start_time(os.getpid()),
                                     "instance_id": "owner"})
@@ -58,7 +59,10 @@ def test_start_detaches_and_stop_requests_owner(tmp_path: Path, monkeypatch: pyt
     tools = _mcp_dispatch.DispatchTools(allow_write=True, projects_db=str(tmp_path / "projects.db"))
     calls = []
     monkeypatch.setattr(_mcp_dispatch.cli, "_spawn_detached", lambda argv, path, **kw: calls.append((argv, path, kw)) or 123)
+    owners = iter([None, {"pid": 123, "instance_id": "abc"}])
+    monkeypatch.setattr(_dispatch, "live_owner", lambda lock: next(owners))
     result = tools.dispatch_start("p", {"repo": "checkout"}, "worktrees", True)
+    assert result["ok"]
     assert result["pid"] == 123
     assert calls[0][0][3:] == ["dispatch", "--project", "p", "--supervise", "--json", "--repo-root",
                               "repo=checkout", "--worktree-root", "worktrees", "--land"]
@@ -68,6 +72,35 @@ def test_start_detaches_and_stop_requests_owner(tmp_path: Path, monkeypatch: pyt
     tools._lock("p").lock_dir.mkdir(parents=True, exist_ok=True)
     assert tools.dispatch_stop("p")["running"] is False
     assert _dispatch.stop_path(tools._lock("p")).read_text() == "abc"
+
+
+def test_reused_pid_owner_is_reclaimed(tmp_path: Path) -> None:
+    lock = _dispatch.owner_lock("p", str(tmp_path / "projects.db"))
+    lock.lock_dir.mkdir(parents=True)
+    lock.path.write_text(json.dumps({"pid": os.getpid(), "job_id": "old", "instance_id": "old",
+                                    "host": socket.gethostname().casefold(), "started_at": "reused"}))
+    assert _dispatch.live_owner(lock) is None
+    assert lock.acquire("new", metadata={"host": socket.gethostname().casefold(),
+                                         "started_at": _dispatch._lockfile.process_start_time(os.getpid()),
+                                         "instance_id": "new"}) == "old"
+    try:
+        assert _dispatch.live_owner(lock)["instance_id"] == "new"
+    finally:
+        lock.release()
+
+
+def test_start_reports_early_child_exit(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LAZYTOOLS_CODE_BRIDGE_DB", str(tmp_path / "bridge.sqlite"))
+    tools = _mcp_dispatch.DispatchTools(allow_write=True, projects_db=str(tmp_path / "projects.db"))
+    def spawn(argv: list[str], path: Path, **kwargs: object) -> int:
+        path.write_text("startup failed\n", encoding="utf-8")
+        return 123
+    monkeypatch.setattr(_mcp_dispatch.cli, "_spawn_detached", spawn)
+    monkeypatch.setattr(_dispatch._lockfile, "_pid_alive", lambda pid: False)
+    result = tools.dispatch_start("p")
+    assert result["ok"] is False
+    assert result["pid"] == 123
+    assert "startup failed" in result["log_tail"]
 
 
 def test_supervise_restarts_once(monkeypatch: pytest.MonkeyPatch) -> None:

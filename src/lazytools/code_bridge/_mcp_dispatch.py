@@ -13,6 +13,8 @@ from lazytools.code_bridge import _dispatch, _dispatch_launch, _jobs, _store, cl
 from lazytools.connectors.projects.tools import _resolve_store_db
 from lazytools.projects.task_service import ProjectTaskService, TaskPrincipal
 
+_START_WAIT_SECONDS = 10.0
+
 
 class DispatchTools:
     _is_lazy_tool_provider = True
@@ -89,8 +91,26 @@ class DispatchTools:
         if self.projects_db:
             env["LAZYTOOLS_PROJECTS_STORE_DB"] = self.projects_db
         log = self._log(project)
+        offset = log.stat().st_size if log.exists() else 0
         pid = cli._spawn_detached(argv, log, env=env)
-        return {"ok": True, "pid": pid, "log_path": str(log)}
+        deadline = time.monotonic() + _START_WAIT_SECONDS
+        lock = self._lock(project)
+        while True:
+            owner = _dispatch.live_owner(lock)
+            if owner and owner.get("pid") == pid:
+                return {"ok": True, "pid": pid, "log_path": str(log), "owner": owner}
+            if not _dispatch._lockfile._pid_alive(pid) or time.monotonic() >= deadline:
+                break
+            time.sleep(0.1)
+        tail = ""
+        try:
+            with log.open("rb") as stream:
+                stream.seek(max(offset, log.stat().st_size - 4000))
+                tail = stream.read(4000).decode("utf-8", errors="replace")
+        except OSError:
+            pass
+        return {"ok": False, "pid": pid, "log_path": str(log),
+                "error": "dispatcher did not acquire ownership", "log_tail": tail}
 
     def dispatch_stop(self, project: str) -> dict[str, Any]:
         """Request graceful shutdown and wait briefly for the owner to exit."""
